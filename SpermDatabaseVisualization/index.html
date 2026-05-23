@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>精子实验数据库查看器 - Sperm Database Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .toast { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .table-container { max-height: 520px; overflow-y: auto; }
+        .table-container::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        th { position: sticky; top: 0; z-index: 10; }
+        .cell-edit { outline: 2px solid #3b82f6; outline-offset: -2px; background: #eff6ff !important; }
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { background: #e0e7ff; }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .drop-zone { border: 2px dashed #94a3b8; transition: all 0.2s; }
+        .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+        .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .chart-container { position: relative; height: 320px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">精子实验数据库查看器</h1>
+                    <p class="text-sm text-slate-500">Sperm Experiment Database Viewer</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="db-info" class="hidden text-sm text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">
+                    <span id="db-filename" class="font-medium"></span>
+                </div>
+                <label id="load-btn" class="cursor-pointer inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    加载数据库
+                    <input type="file" accept=".db" class="hidden" onchange="handleFileLoad(this)">
+                </label>
+                <button id="close-btn" class="hidden inline-flex items-center gap-2 bg-slate-500 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors" onclick="closeDatabase()">
+                    关闭数据库
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Welcome Screen (before loading DB) -->
+        <div id="welcome-screen" class="flex flex-col items-center justify-center py-20">
+            <div class="drop-zone rounded-2xl p-16 text-center max-w-lg" id="drop-zone">
+                <svg class="w-20 h-20 text-slate-400 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                </svg>
+                <h2 class="text-2xl font-bold text-slate-700 mb-2">加载数据库文件</h2>
+                <p class="text-slate-500 mb-6">拖拽 .db 文件到此处，或点击上方"加载数据库"按钮</p>
+                <p class="text-xs text-slate-400">支持 SQLite 数据库文件 (.db)</p>
+            </div>
+        </div>
+
+        <!-- Dashboard (after loading DB) -->
+        <div id="dashboard" class="hidden fade-in">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">总追踪精子数</p>
+                            <p id="stat-total" class="text-2xl font-bold text-slate-800">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">活跃精子数</p>
+                            <p id="stat-active" class="text-2xl font-bold text-slate-800">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">候选池精子数</p>
+                            <p id="stat-pool" class="text-2xl font-bold text-slate-800">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500">平均测量次数</p>
+                            <p id="stat-avg-morph" class="text-2xl font-bold text-slate-800">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="border-b border-slate-200">
+                    <nav class="flex" id="tab-nav">
+                        <button class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600 bg-blue-50/50" data-tab="sperm_records">
+                            精子记录表
+                        </button>
+                        <button class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300" data-tab="morphology_history">
+                            形态学历史
+                        </button>
+                        <button class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300" data-tab="experiment_meta">
+                            实验元数据
+                        </button>
+                        <button class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300" data-tab="visualization">
+                            数据可视化
+                        </button>
+                        <button class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300" data-tab="sql_console">
+                            SQL 控制台
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content: Data Tables -->
+                <div id="tab-content">
+                    <!-- Toolbar -->
+                    <div id="toolbar" class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                                <input type="text" id="search-input" placeholder="搜索..." class="pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" oninput="handleSearch()">
+                            </div>
+                            <span id="row-count" class="text-sm text-slate-500">共 0 条记录</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="page-size" class="border border-slate-300 rounded-lg text-sm px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="handlePageSizeChange()">
+                                <option value="25">25 条/页</option>
+                                <option value="50" selected>50 条/页</option>
+                                <option value="100">100 条/页</option>
+                                <option value="200">200 条/页</option>
+                            </select>
+                            <button class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors" onclick="showAddModal()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                新增
+                            </button>
+                            <button class="inline-flex items-center gap-1.5 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors" onclick="exportCSV()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                导出CSV
+                            </button>
+                            <button class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors" onclick="exportDatabase()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                </svg>
+                                导出数据库
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-container" id="table-container">
+                        <table class="w-full text-sm" id="data-table">
+                            <thead id="table-head" class="bg-slate-100 text-slate-700"></thead>
+                            <tbody id="table-body" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                        <div class="text-sm text-slate-500" id="pagination-info">显示 0-0 / 共 0 条</div>
+                        <div class="flex items-center gap-1" id="pagination-controls"></div>
+                    </div>
+                </div>
+
+                <!-- Visualization Tab -->
+                <div id="viz-content" class="hidden p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">运动学等级分布 (Kinematic Grade Distribution)</h3>
+                            <div class="chart-container"><canvas id="chart-kinematic"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">形态学等级分布 (Morphology Grade Distribution)</h3>
+                            <div class="chart-container"><canvas id="chart-morphology"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">VSL vs ALH 散点图 (Speed vs Lateral Displacement)</h3>
+                            <div class="chart-container"><canvas id="chart-vsl-alh"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">复合评分分布 (Composite Score Distribution)</h3>
+                            <div class="chart-container"><canvas id="chart-composite"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">头部尺寸散点图 (Head Length vs Width)</h3>
+                            <div class="chart-container"><canvas id="chart-head-size"></canvas></div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-slate-200 p-4">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">测量次数 vs 复合评分 (Measurements vs Score)</h3>
+                            <div class="chart-container"><canvas id="chart-measure-score"></canvas></div>
+                        </div>
+                    </div>
+                    <!-- Statistics Panel -->
+                    <div class="mt-6 bg-white rounded-lg border border-slate-200 p-4">
+                        <h3 class="text-sm font-semibold text-slate-700 mb-3">描述性统计 (Descriptive Statistics)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm mono" id="stats-table">
+                                <thead class="bg-slate-100 text-slate-700">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-medium">指标</th>
+                                        <th class="px-3 py-2 text-right font-medium">均值</th>
+                                        <th class="px-3 py-2 text-right font-medium">标准差</th>
+                                        <th class="px-3 py-2 text-right font-medium">最小值</th>
+                                        <th class="px-3 py-2 text-right font-medium">中位数</th>
+                                        <th class="px-3 py-2 text-right font-medium">最大值</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stats-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SQL Console Tab -->
+                <div id="sql-content" class="hidden p-6">
+                    <div class="bg-white rounded-lg border border-slate-200 p-4">
+                        <h3 class="text-sm font-semibold text-slate-700 mb-3">SQL 查询控制台</h3>
+                        <div class="flex gap-2 mb-3">
+                            <textarea id="sql-input" rows="4" class="flex-1 border border-slate-300 rounded-lg p-3 text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" placeholder="SELECT * FROM sperm_records WHERE composite_score > 0.5 LIMIT 10"></textarea>
+                        </div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors" onclick="executeCustomSQL()">执行查询</button>
+                            <button class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors" onclick="document.getElementById('sql-input').value=''">清空</button>
+                            <span class="text-xs text-slate-400 ml-2">提示: 只读查询推荐使用 SELECT，写操作请谨慎使用</span>
+                        </div>
+                        <div class="table-container" id="sql-result-container" style="max-height:400px">
+                            <table class="w-full text-sm mono" id="sql-result-table">
+                                <thead id="sql-result-head" class="bg-slate-100 text-slate-700"></thead>
+                                <tbody id="sql-result-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <div id="sql-result-info" class="text-sm text-slate-500 mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Modal -->
+    <div id="modal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0" onclick="closeModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                <h3 id="modal-title" class="text-lg font-semibold text-slate-800">新增记录</h3>
+                <button class="text-slate-400 hover:text-slate-600" onclick="closeModal()">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-4">
+                <div id="modal-fields" class="grid grid-cols-2 gap-4"></div>
+            </div>
+            <div class="flex justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
+                <button class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50" onclick="closeModal()">取消</button>
+                <button id="modal-submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700" onclick="submitModal()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- sql.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js"></script>
+
+    <script>
+    // ============================================================
+    // Section 1: Constants and Configuration
+    // ============================================================
+    const COLUMN_INFO = {
+        sperm_records: {
+            track_id:                     { label: 'Track ID',           cn: '轨迹ID',         type: 'integer', editable: false },
+            vsl:                          { label: 'VSL',                cn: '直线速度(um/s)',   type: 'real' },
+            alh:                          { label: 'ALH',                cn: '侧摆幅度(um)',     type: 'real' },
+            kinematic_grade:              { label: 'Kinematic Grade',    cn: '运动学等级',       type: 'integer' },
+            pos_x:                        { label: 'Position X',         cn: 'X坐标',           type: 'real' },
+            pos_y:                        { label: 'Position Y',         cn: 'Y坐标',           type: 'real' },
+            head_length:                  { label: 'Head Length',         cn: '头部长度(um)',     type: 'real' },
+            head_width:                   { label: 'Head Width',          cn: '头部宽度(um)',     type: 'real' },
+            head_ratio:                   { label: 'Head Ratio',          cn: '头部长宽比',       type: 'real' },
+            head_area:                    { label: 'Head Area',           cn: '头部面积(um2)',    type: 'real' },
+            neck_width:                   { label: 'Neck Width',          cn: '颈部宽度(um)',     type: 'real' },
+            neck_length:                  { label: 'Neck Length',          cn: '颈部长度(um)',     type: 'real' },
+            neck_head_angle:              { label: 'Neck-Head Angle',     cn: '头颈角度(deg)',    type: 'real' },
+            neck_bent_angle:              { label: 'Neck Bent Angle',     cn: '颈部弯曲角度(deg)', type: 'real' },
+            morphology_grade:             { label: 'Morphology Grade',    cn: '形态学等级',       type: 'integer' },
+            morphology_measurement_count: { label: 'Measurement Count',   cn: '测量次数',         type: 'integer' },
+            in_candidate_pool:            { label: 'In Candidate Pool',   cn: '是否在候选池',     type: 'integer' },
+            scheduling_score:             { label: 'Scheduling Score',    cn: '调度得分',         type: 'real' },
+            composite_score:              { label: 'Composite Score',     cn: '复合评分',         type: 'real' },
+            first_seen:                   { label: 'First Seen',          cn: '首次出现时间',     type: 'real', format: 'timestamp' },
+            last_updated:                 { label: 'Last Updated',        cn: '最后更新时间',     type: 'real', format: 'timestamp' },
+            is_active:                    { label: 'Is Active',           cn: '是否活跃',         type: 'integer' }
+        },
+        morphology_history: {
+            id:              { label: 'ID',               cn: '记录ID',         type: 'integer', editable: false },
+            track_id:        { label: 'Track ID',         cn: '轨迹ID',        type: 'integer' },
+            timestamp:       { label: 'Timestamp',        cn: '时间戳',         type: 'real', format: 'timestamp' },
+            frame_number:    { label: 'Frame Number',     cn: '帧号',           type: 'integer' },
+            head_length:     { label: 'Head Length',       cn: '头部长度(um)',   type: 'real' },
+            head_width:      { label: 'Head Width',        cn: '头部宽度(um)',   type: 'real' },
+            head_ratio:      { label: 'Head Ratio',        cn: '头部长宽比',     type: 'real' },
+            head_area:       { label: 'Head Area',         cn: '头部面积(um2)',  type: 'real' },
+            neck_width:      { label: 'Neck Width',        cn: '颈部宽度(um)',   type: 'real' },
+            neck_length:     { label: 'Neck Length',        cn: '颈部长度(um)',   type: 'real' },
+            neck_head_angle: { label: 'Neck-Head Angle',   cn: '头颈角度(deg)',  type: 'real' },
+            neck_bent_angle: { label: 'Neck Bent Angle',   cn: '颈部弯曲角度(deg)', type: 'real' },
+            vsl:             { label: 'VSL',               cn: '直线速度(um/s)', type: 'real' },
+            alh:             { label: 'ALH',               cn: '侧摆幅度(um)',   type: 'real' },
+            grade:           { label: 'Grade',             cn: '等级',           type: 'integer' }
+        },
+        experiment_meta: {
+            key:   { label: 'Key',   cn: '键', type: 'text' },
+            value: { label: 'Value', cn: '值', type: 'text' }
+        }
+    };
+
+    const PRIMARY_KEYS = {
+        sperm_records: 'track_id',
+        morphology_history: 'id',
+        experiment_meta: 'key'
+    };
+
+    const KINEMATIC_GRADE_COLORS = {
+        1: '#22c55e', 2: '#84cc16', 3: '#eab308', 4: '#f97316', 5: '#ef4444', 6: '#991b1b'
+    };
+
+    const MORPHOLOGY_GRADE_LABELS = { 4: '正常(G4)', 5: '异常(G5)', '-1': '未分级' };
+
+    // ============================================================
+    // Section 2: Global State
+    // ============================================================
+    let db = null;
+    let currentTable = 'sperm_records';
+    let currentPage = 1;
+    let pageSize = 50;
+    let totalRows = 0;
+    let searchTerm = '';
+    let sortColumn = '';
+    let sortDir = 'ASC';
+    let charts = {};
+
+    // ============================================================
+    // Section 3: Database Layer
+    // ============================================================
+    let SQL = null;
+
+    async function initSqlEngine() {
+        if (!SQL) {
+            SQL = await initSqlJs({
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/${file}`
+            });
+        }
+        return SQL;
+    }
+
+    async function loadDatabaseFromFile(file) {
+        try {
+            const sqlEngine = await initSqlEngine();
+            const buffer = await file.arrayBuffer();
+            const uint8 = new Uint8Array(buffer);
+            db = new sqlEngine.Database(uint8);
+            return true;
+        } catch (e) {
+            showToast('加载数据库失败: ' + e.message, 'error');
+            return false;
+        }
+    }
+
+    function query(sql, params = []) {
+        try {
+            const stmt = db.prepare(sql);
+            if (params.length) stmt.bind(params);
+            const results = [];
+            while (stmt.step()) results.push(stmt.getAsObject());
+            stmt.free();
+            return results;
+        } catch (e) {
+            showToast('查询失败: ' + e.message, 'error');
+            return [];
+        }
+    }
+
+    function execute(sql, params = []) {
+        try {
+            db.run(sql, params);
+            return true;
+        } catch (e) {
+            showToast('执行失败: ' + e.message, 'error');
+            return false;
+        }
+    }
+
+    function getTableCount(tableName) {
+        const result = query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+        return result.length ? result[0].cnt : 0;
+    }
+
+    // ============================================================
+    // Section 4: File Loading & UI State
+    // ============================================================
+    async function handleFileLoad(input) {
+        const file = input.files[0];
+        if (!file) return;
+        if (!file.name.endsWith('.db')) {
+            showToast('请选择 .db 格式的数据库文件', 'error');
+            return;
+        }
+        const ok = await loadDatabaseFromFile(file);
+        if (ok) {
+            showDashboard(file.name);
+        }
+    }
+
+    function showDashboard(filename) {
+        document.getElementById('welcome-screen').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('db-info').classList.remove('hidden');
+        document.getElementById('db-filename').textContent = filename;
+        document.getElementById('close-btn').classList.remove('hidden');
+        document.getElementById('load-btn').classList.add('hidden');
+        updateSummaryCards();
+        switchTab('sperm_records');
+    }
+
+    function closeDatabase() {
+        if (db) { db.close(); db = null; }
+        document.getElementById('welcome-screen').classList.remove('hidden');
+        document.getElementById('dashboard').classList.add('hidden');
+        document.getElementById('db-info').classList.add('hidden');
+        document.getElementById('close-btn').classList.add('hidden');
+        document.getElementById('load-btn').classList.remove('hidden');
+        destroyAllCharts();
+    }
+
+    function updateSummaryCards() {
+        const total = query('SELECT COUNT(*) as c FROM sperm_records')[0]?.c || 0;
+        const active = query('SELECT COUNT(*) as c FROM sperm_records WHERE is_active = 1')[0]?.c || 0;
+        const pool = query('SELECT COUNT(*) as c FROM sperm_records WHERE in_candidate_pool = 1')[0]?.c || 0;
+        const avg = query('SELECT AVG(morphology_measurement_count) as c FROM sperm_records')[0]?.c || 0;
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-active').textContent = active;
+        document.getElementById('stat-pool').textContent = pool;
+        document.getElementById('stat-avg-morph').textContent = avg.toFixed(1);
+    }
+
+    // ============================================================
+    // Section 5: Tab Switching
+    // ============================================================
+    function switchTab(tabName) {
+        currentTable = tabName;
+        currentPage = 1;
+        searchTerm = '';
+        sortColumn = '';
+        sortDir = 'ASC';
+        document.getElementById('search-input').value = '';
+
+        // Update tab button styles
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            if (btn.dataset.tab === tabName) {
+                btn.className = 'tab-btn px-6 py-3 text-sm font-medium border-b-2 border-blue-600 text-blue-600 bg-blue-50/50';
+            } else {
+                btn.className = 'tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300';
+            }
+        });
+
+        // Show/hide content
+        const isViz = tabName === 'visualization';
+        const isSql = tabName === 'sql_console';
+        document.getElementById('tab-content').classList.toggle('hidden', isViz || isSql);
+        document.getElementById('viz-content').classList.toggle('hidden', !isViz);
+        document.getElementById('sql-content').classList.toggle('hidden', !isSql);
+
+        if (isViz) {
+            renderVisualization();
+        } else if (isSql) {
+            // SQL console: no-op
+        } else {
+            refreshTable();
+        }
+    }
+
+    // ============================================================
+    // Section 6: Table Rendering
+    // ============================================================
+    function refreshTable() {
+        const cols = COLUMN_INFO[currentTable];
+        if (!cols) return;
+
+        // Build query
+        const totalQuery = buildQuery(true);
+        const totalResult = query(totalQuery.sql, totalQuery.params);
+        totalRows = totalResult.length ? totalResult[0].cnt : 0;
+
+        const dataQuery = buildQuery(false);
+        const rows = query(dataQuery.sql, dataQuery.params);
+
+        renderTableHead(cols);
+        renderTableBody(cols, rows);
+        renderPagination();
+        updateRowCount();
+    }
+
+    function buildQuery(countOnly) {
+        const cols = COLUMN_INFO[currentTable];
+        const colNames = Object.keys(cols);
+        let sql, params = [];
+
+        if (countOnly) {
+            sql = `SELECT COUNT(*) as cnt FROM ${currentTable}`;
+        } else {
+            sql = `SELECT ${colNames.join(', ')} FROM ${currentTable}`;
+        }
+
+        if (searchTerm) {
+            const conditions = colNames.map(c => `CAST(${c} AS TEXT) LIKE ?`).join(' OR ');
+            const searchParam = `%${searchTerm}%`;
+            sql += ` WHERE ${conditions}`;
+            params = colNames.map(() => searchParam);
+        }
+
+        if (!countOnly && sortColumn) {
+            sql += ` ORDER BY ${sortColumn} ${sortDir}`;
+        }
+
+        if (!countOnly) {
+            const offset = (currentPage - 1) * pageSize;
+            sql += ` LIMIT ${pageSize} OFFSET ${offset}`;
+        }
+
+        return { sql, params };
+    }
+
+    function renderTableHead(cols) {
+        const thead = document.getElementById('table-head');
+        const colNames = Object.keys(cols);
+        let html = '<tr><th class="px-3 py-2.5 text-left text-xs font-medium text-slate-500 uppercase w-20">操作</th>';
+        colNames.forEach(col => {
+            const info = cols[col];
+            const isSorted = sortColumn === col;
+            const arrow = isSorted ? (sortDir === 'ASC' ? ' ↑' : ' ↓') : '';
+            html += `<th class="px-3 py-2.5 text-left sortable" onclick="handleSort('${col}')">
+                <div class="text-xs font-medium text-slate-500 uppercase">${info.label}${arrow}</div>
+                <div class="text-[10px] text-slate-400 font-normal normal-case">${info.cn}</div>
+            </th>`;
+        });
+        html += '</tr>';
+        thead.innerHTML = html;
+    }
+
+    function renderTableBody(cols, rows) {
+        const tbody = document.getElementById('table-body');
+        const colNames = Object.keys(cols);
+        const pkCol = PRIMARY_KEYS[currentTable];
+
+        if (rows.length === 0) {
+            const colspan = colNames.length + 1;
+            tbody.innerHTML = `<tr><td colspan="${colspan}" class="px-3 py-12 text-center text-slate-400">暂无数据</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        rows.forEach(row => {
+            const pkVal = row[pkCol];
+            html += `<tr class="hover:bg-blue-50/50 transition-colors">`;
+            html += `<td class="px-3 py-2">
+                <div class="flex items-center gap-1">
+                    <button class="p-1 text-slate-400 hover:text-blue-600 rounded" onclick="editRow('${pkVal}')" title="编辑">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button class="p-1 text-slate-400 hover:text-red-600 rounded" onclick="deleteRow('${pkVal}')" title="删除">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </td>`;
+            colNames.forEach(col => {
+                const info = cols[col];
+                let val = row[col];
+                if (val === null || val === undefined) {
+                    val = '<span class="text-slate-300 italic">NULL</span>';
+                } else if (info.format === 'timestamp') {
+                    val = formatTimestamp(val);
+                } else if (typeof val === 'number') {
+                    val = info.type === 'real' ? val.toFixed(4) : val;
+                }
+                const editable = info.editable !== false ? ' ondblclick="startInlineEdit(this)"' : '';
+                html += `<td class="px-3 py-2 mono text-xs text-slate-700" data-col="${col}" data-pk="${pkVal}"${editable}>${val}</td>`;
+            });
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderPagination() {
+        const totalPages = Math.ceil(totalRows / pageSize);
+        const container = document.getElementById('pagination-controls');
+        const info = document.getElementById('pagination-info');
+
+        const start = totalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalRows);
+        info.textContent = `显示 ${start}-${end} / 共 ${totalRows} 条`;
+
+        if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+        let html = '';
+        html += `<button class="px-2 py-1 text-sm rounded border border-slate-300 hover:bg-slate-100 disabled:opacity-50" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">上一页</button>`;
+
+        const maxButtons = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        if (endPage - startPage < maxButtons - 1) startPage = Math.max(1, endPage - maxButtons + 1);
+
+        if (startPage > 1) {
+            html += `<button class="w-8 h-8 text-sm rounded border border-slate-300 hover:bg-slate-100" onclick="goToPage(1)">1</button>`;
+            if (startPage > 2) html += `<span class="px-1 text-slate-400">...</span>`;
+        }
+        for (let i = startPage; i <= endPage; i++) {
+            const active = i === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 hover:bg-slate-100';
+            html += `<button class="w-8 h-8 text-sm rounded border ${active}" onclick="goToPage(${i})">${i}</button>`;
+        }
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) html += `<span class="px-1 text-slate-400">...</span>`;
+            html += `<button class="w-8 h-8 text-sm rounded border border-slate-300 hover:bg-slate-100" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+        }
+
+        html += `<button class="px-2 py-1 text-sm rounded border border-slate-300 hover:bg-slate-100 disabled:opacity-50" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">下一页</button>`;
+        container.innerHTML = html;
+    }
+
+    function updateRowCount() {
+        document.getElementById('row-count').textContent = `共 ${totalRows} 条记录`;
+    }
+
+    // ============================================================
+    // Section 7: Search, Sort, Pagination
+    // ============================================================
+    function handleSearch() {
+        searchTerm = document.getElementById('search-input').value.trim();
+        currentPage = 1;
+        refreshTable();
+    }
+
+    function handleSort(col) {
+        if (sortColumn === col) {
+            sortDir = sortDir === 'ASC' ? 'DESC' : 'ASC';
+        } else {
+            sortColumn = col;
+            sortDir = 'ASC';
+        }
+        refreshTable();
+    }
+
+    function goToPage(page) {
+        currentPage = page;
+        refreshTable();
+    }
+
+    function handlePageSizeChange() {
+        pageSize = parseInt(document.getElementById('page-size').value);
+        currentPage = 1;
+        refreshTable();
+    }
+
+    // ============================================================
+    // Section 8: CRUD Operations
+    // ============================================================
+    function startInlineEdit(td) {
+        if (td.querySelector('input')) return;
+        const col = td.dataset.col;
+        const pk = td.dataset.pk;
+        const info = COLUMN_INFO[currentTable][col];
+        if (info.editable === false) return;
+
+        const oldValue = td.textContent.trim() === 'NULL' ? '' : td.textContent.trim();
+        const input = document.createElement('input');
+        input.type = info.type === 'text' ? 'text' : 'number';
+        if (info.type === 'real') input.step = 'any';
+        input.value = oldValue;
+        input.className = 'w-full px-1 py-0.5 text-xs mono border border-blue-400 rounded cell-edit';
+
+        td.innerHTML = '';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+
+        const finish = () => {
+            const newValue = input.value;
+            td.textContent = newValue || 'NULL';
+            if (newValue !== oldValue) {
+                const pkCol = PRIMARY_KEYS[currentTable];
+                let valToStore = newValue;
+                if (info.type !== 'text' && newValue !== '') {
+                    valToStore = parseFloat(newValue);
+                }
+                if (newValue === '') valToStore = null;
+                execute(`UPDATE ${currentTable} SET ${col} = ? WHERE ${pkCol} = ?`, [valToStore, pk]);
+                showToast('已更新', 'success');
+                if (currentTable === 'sperm_records') updateSummaryCards();
+            }
+        };
+
+        input.addEventListener('blur', finish);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            if (e.key === 'Escape') { td.textContent = oldValue || 'NULL'; }
+        });
+    }
+
+    function deleteRow(pkVal) {
+        if (!confirm('确定要删除这条记录吗？此操作不可撤销。')) return;
+        const pkCol = PRIMARY_KEYS[currentTable];
+        execute(`DELETE FROM ${currentTable} WHERE ${pkCol} = ?`, [pkVal]);
+        showToast('记录已删除', 'success');
+        if (currentTable === 'sperm_records') updateSummaryCards();
+        refreshTable();
+    }
+
+    function editRow(pkVal) {
+        const pkCol = PRIMARY_KEYS[currentTable];
+        const cols = COLUMN_INFO[currentTable];
+        const colNames = Object.keys(cols);
+        const rows = query(`SELECT ${colNames.join(', ')} FROM ${currentTable} WHERE ${pkCol} = ?`, [pkVal]);
+        if (!rows.length) return;
+        showEditModal(rows[0], pkVal);
+    }
+
+    // ============================================================
+    // Section 9: Modal (Add / Edit)
+    // ============================================================
+    let modalMode = 'add';
+    let modalPkVal = null;
+
+    function showAddModal() {
+        modalMode = 'add';
+        modalPkVal = null;
+        document.getElementById('modal-title').textContent = `新增记录 - ${currentTable}`;
+        renderModalFields({});
+        document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function showEditModal(row, pkVal) {
+        modalMode = 'edit';
+        modalPkVal = pkVal;
+        document.getElementById('modal-title').textContent = `编辑记录 #${pkVal}`;
+        renderModalFields(row);
+        document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function renderModalFields(values) {
+        const cols = COLUMN_INFO[currentTable];
+        const container = document.getElementById('modal-fields');
+        let html = '';
+        Object.entries(cols).forEach(([col, info]) => {
+            const val = values[col] !== undefined && values[col] !== null ? values[col] : '';
+            const disabled = info.editable === false ? 'disabled' : '';
+            const inputType = info.type === 'text' ? 'text' : 'number';
+            const step = info.type === 'real' ? 'step="any"' : '';
+            html += `<div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">${info.label} <span class="text-slate-400">(${info.cn})</span></label>
+                <input type="${inputType}" ${step} data-col="${col}" value="${val}" ${disabled}
+                    class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500 ${disabled ? 'bg-slate-100 text-slate-400' : ''}">
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function submitModal() {
+        const cols = COLUMN_INFO[currentTable];
+        const inputs = document.querySelectorAll('#modal-fields input');
+        const values = {};
+        inputs.forEach(input => {
+            const col = input.dataset.col;
+            const info = cols[col];
+            if (info.editable === false && modalMode === 'add') return;
+            let val = input.value;
+            if (val === '') { values[col] = null; return; }
+            if (info.type !== 'text') val = parseFloat(val);
+            values[col] = val;
+        });
+
+        if (modalMode === 'add') {
+            const colNames = Object.keys(values);
+            const placeholders = colNames.map(() => '?').join(', ');
+            execute(`INSERT INTO ${currentTable} (${colNames.join(', ')}) VALUES (${placeholders})`, Object.values(values));
+            showToast('记录已添加', 'success');
+        } else {
+            const pkCol = PRIMARY_KEYS[currentTable];
+            const sets = Object.keys(values).filter(c => c !== pkCol).map(c => `${c} = ?`);
+            const vals = Object.entries(values).filter(([c]) => c !== pkCol).map(([, v]) => v);
+            vals.push(modalPkVal);
+            execute(`UPDATE ${currentTable} SET ${sets.join(', ')} WHERE ${pkCol} = ?`, vals);
+            showToast('记录已更新', 'success');
+        }
+
+        closeModal();
+        if (currentTable === 'sperm_records') updateSummaryCards();
+        refreshTable();
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+    }
+
+    // ============================================================
+    // Section 10: Export
+    // ============================================================
+    function exportCSV() {
+        const cols = COLUMN_INFO[currentTable];
+        const colNames = Object.keys(cols);
+        const rows = query(`SELECT ${colNames.join(', ')} FROM ${currentTable}`);
+
+        let csv = colNames.map(c => `"${cols[c].label}"`).join(',') + '\n';
+        rows.forEach(row => {
+            csv += colNames.map(c => {
+                const v = row[c];
+                return v === null ? '' : `"${v}"`;
+            }).join(',') + '\n';
+        });
+
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        downloadBlob(blob, `${currentTable}_export.csv`);
+        showToast(`已导出 ${rows.length} 条记录`, 'success');
+    }
+
+    function exportDatabase() {
+        if (!db) return;
+        const data = db.export();
+        const blob = new Blob([data], { type: 'application/x-sqlite3' });
+        downloadBlob(blob, 'modified_database.db');
+        showToast('数据库已导出', 'success');
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ============================================================
+    // Section 11: SQL Console
+    // ============================================================
+    function executeCustomSQL() {
+        const sql = document.getElementById('sql-input').value.trim();
+        if (!sql) return;
+
+        try {
+            const startTime = performance.now();
+            const isSelect = sql.toUpperCase().trimStart().startsWith('SELECT') || sql.toUpperCase().trimStart().startsWith('PRAGMA');
+            if (isSelect) {
+                const rows = db.exec(sql);
+                const elapsed = (performance.now() - startTime).toFixed(1);
+                if (rows.length === 0) {
+                    document.getElementById('sql-result-head').innerHTML = '';
+                    document.getElementById('sql-result-body').innerHTML = '<tr><td class="px-3 py-8 text-center text-slate-400">查询返回空结果</td></tr>';
+                    document.getElementById('sql-result-info').textContent = `执行完成，耗时 ${elapsed}ms`;
+                    return;
+                }
+                const result = rows[0];
+                let headHtml = '<tr>';
+                result.columns.forEach(c => { headHtml += `<th class="px-3 py-2 text-left text-xs font-medium text-slate-500">${c}</th>`; });
+                headHtml += '</tr>';
+                document.getElementById('sql-result-head').innerHTML = headHtml;
+
+                let bodyHtml = '';
+                result.values.forEach(row => {
+                    bodyHtml += '<tr>';
+                    row.forEach(v => { bodyHtml += `<td class="px-3 py-2 text-xs mono text-slate-700">${v === null ? '<span class="text-slate-300 italic">NULL</span>' : v}</td>`; });
+                    bodyHtml += '</tr>';
+                });
+                document.getElementById('sql-result-body').innerHTML = bodyHtml;
+                document.getElementById('sql-result-info').textContent = `返回 ${result.values.length} 行，耗时 ${elapsed}ms`;
+            } else {
+                db.run(sql);
+                const elapsed = (performance.now() - startTime).toFixed(1);
+                document.getElementById('sql-result-head').innerHTML = '';
+                document.getElementById('sql-result-body').innerHTML = '<tr><td class="px-3 py-8 text-center text-green-600">语句执行成功</td></tr>';
+                document.getElementById('sql-result-info').textContent = `执行完成，耗时 ${elapsed}ms`;
+                // Refresh dashboard if needed
+                updateSummaryCards();
+            }
+        } catch (e) {
+            document.getElementById('sql-result-head').innerHTML = '';
+            document.getElementById('sql-result-body').innerHTML = `<tr><td class="px-3 py-8 text-center text-red-500">错误: ${e.message}</td></tr>`;
+            document.getElementById('sql-result-info').textContent = '';
+        }
+    }
+
+    // ============================================================
+    // Section 12: Visualization
+    // ============================================================
+    function destroyAllCharts() {
+        Object.values(charts).forEach(c => c.destroy());
+        charts = {};
+    }
+
+    function renderVisualization() {
+        destroyAllCharts();
+        renderKinematicChart();
+        renderMorphologyChart();
+        renderVslAlhChart();
+        renderCompositeChart();
+        renderHeadSizeChart();
+        renderMeasureScoreChart();
+        renderStatisticsTable();
+    }
+
+    function renderKinematicChart() {
+        const rows = query('SELECT kinematic_grade, COUNT(*) as cnt FROM sperm_records GROUP BY kinematic_grade ORDER BY kinematic_grade');
+        const labels = rows.map(r => `Grade ${r.kinematic_grade}`);
+        const data = rows.map(r => r.cnt);
+        const colors = rows.map(r => KINEMATIC_GRADE_COLORS[r.kinematic_grade] || '#94a3b8');
+
+        charts.kinematic = new Chart(document.getElementById('chart-kinematic'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: '精子数量', data, backgroundColor: colors, borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+
+    function renderMorphologyChart() {
+        const rows = query('SELECT morphology_grade, COUNT(*) as cnt FROM sperm_records GROUP BY morphology_grade');
+        const labels = rows.map(r => MORPHOLOGY_GRADE_LABELS[r.morphology_grade] || `Grade ${r.morphology_grade}`);
+        const data = rows.map(r => r.cnt);
+        const colors = ['#22c55e', '#ef4444', '#94a3b8', '#6366f1', '#f59e0b'];
+
+        charts.morphology = new Chart(document.getElementById('chart-morphology'), {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 2, borderColor: '#fff' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function renderVslAlhChart() {
+        const rows = query('SELECT vsl, alh, kinematic_grade FROM sperm_records WHERE vsl > 0 AND alh > 0');
+        const datasets = {};
+        rows.forEach(r => {
+            const g = r.kinematic_grade;
+            if (!datasets[g]) datasets[g] = { label: `Grade ${g}`, data: [], backgroundColor: KINEMATIC_GRADE_COLORS[g] || '#94a3b8' };
+            datasets[g].data.push({ x: r.vsl, y: r.alh });
+        });
+
+        charts.vslAlh = new Chart(document.getElementById('chart-vsl-alh'), {
+            type: 'scatter',
+            data: { datasets: Object.values(datasets) },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { title: { display: true, text: 'VSL (um/s)' } }, y: { title: { display: true, text: 'ALH (um)' } } },
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    function renderCompositeChart() {
+        const rows = query('SELECT composite_score FROM sperm_records WHERE composite_score > 0');
+        const bins = Array(10).fill(0);
+        rows.forEach(r => {
+            const idx = Math.min(Math.floor(r.composite_score * 10), 9);
+            bins[idx]++;
+        });
+        const labels = bins.map((_, i) => `${(i * 0.1).toFixed(1)}-${((i + 1) * 0.1).toFixed(1)}`);
+
+        charts.composite = new Chart(document.getElementById('chart-composite'), {
+            type: 'bar',
+            data: { labels, datasets: [{ label: '精子数量', data: bins, backgroundColor: '#6366f1', borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    function renderHeadSizeChart() {
+        const rows = query('SELECT head_length, head_width, morphology_grade FROM sperm_records WHERE head_length > 0 AND head_width > 0');
+        const datasets = {};
+        rows.forEach(r => {
+            const g = r.morphology_grade;
+            const label = MORPHOLOGY_GRADE_LABELS[g] || `Grade ${g}`;
+            if (!datasets[g]) datasets[g] = { label, data: [], backgroundColor: g === 4 ? '#22c55e' : g === 5 ? '#ef4444' : '#94a3b8' };
+            datasets[g].data.push({ x: r.head_length, y: r.head_width });
+        });
+
+        charts.headSize = new Chart(document.getElementById('chart-head-size'), {
+            type: 'scatter',
+            data: { datasets: Object.values(datasets) },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { title: { display: true, text: 'Head Length (um)' } }, y: { title: { display: true, text: 'Head Width (um)' } } },
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    function renderMeasureScoreChart() {
+        const rows = query('SELECT morphology_measurement_count, composite_score FROM sperm_records WHERE composite_score > 0');
+        charts.measureScore = new Chart(document.getElementById('chart-measure-score'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: '测量次数 vs 复合评分',
+                    data: rows.map(r => ({ x: r.morphology_measurement_count, y: r.composite_score })),
+                    backgroundColor: '#0ea5e9'
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { title: { display: true, text: '测量次数' } }, y: { title: { display: true, text: '复合评分' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function renderStatisticsTable() {
+        const metrics = [
+            { label: 'VSL (um/s)', col: 'vsl' },
+            { label: 'ALH (um)', col: 'alh' },
+            { label: '头部长度 (um)', col: 'head_length' },
+            { label: '头部宽度 (um)', col: 'head_width' },
+            { label: '头部长宽比', col: 'head_ratio' },
+            { label: '复合评分', col: 'composite_score' }
+        ];
+
+        const tbody = document.getElementById('stats-body');
+        let html = '';
+        metrics.forEach(m => {
+            const rows = query(`SELECT ${m.col} FROM sperm_records WHERE ${m.col} > 0`);
+            if (rows.length === 0) {
+                html += `<tr><td class="px-3 py-2 font-medium text-slate-600">${m.label}</td><td colspan="5" class="px-3 py-2 text-center text-slate-400">无数据</td></tr>`;
+                return;
+            }
+            const vals = rows.map(r => r[m.col]).sort((a, b) => a - b);
+            const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+            const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
+            const std = Math.sqrt(variance);
+            const median = vals.length % 2 === 0 ? (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2 : vals[Math.floor(vals.length / 2)];
+            html += `<tr>
+                <td class="px-3 py-2 font-medium text-slate-600">${m.label}</td>
+                <td class="px-3 py-2 text-right">${mean.toFixed(4)}</td>
+                <td class="px-3 py-2 text-right">${std.toFixed(4)}</td>
+                <td class="px-3 py-2 text-right">${vals[0].toFixed(4)}</td>
+                <td class="px-3 py-2 text-right">${median.toFixed(4)}</td>
+                <td class="px-3 py-2 text-right">${vals[vals.length - 1].toFixed(4)}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // ============================================================
+    // Section 13: Utilities
+    // ============================================================
+    function formatTimestamp(ts) {
+        if (!ts) return '';
+        const d = new Date(ts * 1000);
+        return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+        const toast = document.createElement('div');
+        toast.className = `toast ${colors[type] || colors.info} text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-2 min-w-[200px]`;
+        toast.innerHTML = `<span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    // ============================================================
+    // Section 14: Drag & Drop
+    // ============================================================
+    function setupDragDrop() {
+        const zone = document.getElementById('drop-zone');
+        if (!zone) return;
+        ['dragenter', 'dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('dragover'); }));
+        ['dragleave', 'drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('dragover'); }));
+        zone.addEventListener('drop', async ev => {
+            const file = ev.dataTransfer.files[0];
+            if (!file || !file.name.endsWith('.db')) { showToast('请拖入 .db 格式的文件', 'error'); return; }
+            const ok = await loadDatabaseFromFile(file);
+            if (ok) showDashboard(file.name);
+        });
+    }
+
+    // ============================================================
+    // Section 15: Keyboard Shortcuts
+    // ============================================================
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeModal();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f' && db) {
+            e.preventDefault();
+            document.getElementById('search-input').focus();
+        }
+    });
+
+    // ============================================================
+    // Section 16: Tab Event Listeners
+    // ============================================================
+    document.getElementById('tab-nav').addEventListener('click', e => {
+        const btn = e.target.closest('.tab-btn');
+        if (btn) switchTab(btn.dataset.tab);
+    });
+
+    // ============================================================
+    // Section 17: Initialization
+    // ============================================================
+    setupDragDrop();
+    </script>
+</body>
+</html>

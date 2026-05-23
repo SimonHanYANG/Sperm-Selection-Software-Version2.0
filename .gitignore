@@ -1,0 +1,10 @@
+test-videoes/
+yolo_weights/
+output-videoes/
+output-seg-res/
+seg_weights/
+ROI-seg-test/
+weights_videos.zip
+SpermDatabase/
+TensorRt-10.9.0.34/
+.vscode/

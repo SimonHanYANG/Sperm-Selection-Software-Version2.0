@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时单精子优选分级系统 - 项目技术文档</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-sans);
+            line-height: 1.7;
+            color: var(--gray-800);
+            background: var(--gray-50);
+        }
+
+        /* Navigation */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--gray-900);
+            color: white;
+            overflow-y: auto;
+            z-index: 100;
+            padding: 20px 0;
+            transition: transform 0.3s;
+        }
+
+        .sidebar-header {
+            padding: 10px 20px 20px;
+            border-bottom: 1px solid var(--gray-700);
+            margin-bottom: 15px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            line-height: 1.4;
+        }
+
+        .sidebar-header .version {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-top: 5px;
+        }
+
+        .sidebar nav a {
+            display: block;
+            padding: 6px 20px;
+            color: var(--gray-300);
+            text-decoration: none;
+            font-size: 13px;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar nav a:hover {
+            background: var(--gray-800);
+            color: white;
+            border-left-color: var(--primary-light);
+        }
+
+        .sidebar nav a.active {
+            background: var(--gray-800);
+            color: white;
+            border-left-color: var(--primary);
+            font-weight: 500;
+        }
+
+        .sidebar nav .section-title {
+            padding: 12px 20px 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--gray-500);
+            font-weight: 600;
+        }
+
+        .sidebar nav .indent { padding-left: 35px; }
+
+        /* Main content */
+        .main {
+            margin-left: 280px;
+            padding: 40px 60px;
+            max-width: 1000px;
+        }
+
+        /* Header */
+        .doc-header {
+            text-align: center;
+            padding: 40px 0 50px;
+            border-bottom: 2px solid var(--gray-200);
+            margin-bottom: 40px;
+        }
+
+        .doc-header h1 {
+            font-size: 32px;
+            color: var(--gray-900);
+            margin-bottom: 10px;
+        }
+
+        .doc-header .subtitle {
+            font-size: 18px;
+            color: var(--gray-500);
+        }
+
+        .doc-header .meta {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--gray-500);
+        }
+
+        .doc-header .meta span {
+            margin: 0 10px;
+        }
+
+        /* Sections */
+        section {
+            margin-bottom: 50px;
+        }
+
+        h2 {
+            font-size: 24px;
+            color: var(--gray-900);
+            margin: 40px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+            display: inline-block;
+        }
+
+        h3 {
+            font-size: 20px;
+            color: var(--gray-800);
+            margin: 30px 0 15px;
+        }
+
+        h4 {
+            font-size: 16px;
+            color: var(--gray-700);
+            margin: 20px 0 10px;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: var(--gray-700);
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid var(--gray-200);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title .icon {
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            color: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* Info boxes */
+        .info-box {
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+
+        .info-box.tip {
+            background: #f0fdf4;
+            border-color: var(--success);
+        }
+
+        .info-box.warning {
+            background: #fffbeb;
+            border-color: var(--warning);
+        }
+
+        .info-box.danger {
+            background: #fef2f2;
+            border-color: var(--danger);
+        }
+
+        .info-box.info {
+            background: #eff6ff;
+            border-color: var(--primary);
+        }
+
+        .info-box .label {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .info-box.tip .label { color: var(--success); }
+        .info-box.warning .label { color: var(--warning); }
+        .info-box.danger .label { color: var(--danger); }
+        .info-box.info .label { color: var(--primary); }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0 25px;
+            font-size: 14px;
+        }
+
+        thead {
+            background: var(--gray-100);
+        }
+
+        th {
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--gray-700);
+            border-bottom: 2px solid var(--gray-300);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--gray-200);
+            color: var(--gray-700);
+        }
+
+        tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Code */
+        code {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--danger);
+        }
+
+        pre {
+            background: var(--gray-900);
+            color: #e5e7eb;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 25px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        /* Flow diagrams */
+        .flow-diagram {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .flow-step {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .flow-arrow {
+            display: inline-block;
+            color: var(--gray-400);
+            font-size: 20px;
+            margin: 0 5px;
+            vertical-align: middle;
+        }
+
+        .flow-box {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 15px 0;
+        }
+
+        .flow-box.down {
+            flex-direction: column;
+        }
+
+        /* Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 10px 0 20px 25px;
+            color: var(--gray-700);
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* Tags */
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .tag-blue { background: #dbeafe; color: #1d4ed8; }
+        .tag-green { background: #dcfce7; color: #166534; }
+        .tag-yellow { background: #fef9c3; color: #854d0e; }
+        .tag-red { background: #fee2e2; color: #991b1b; }
+        .tag-gray { background: var(--gray-100); color: var(--gray-600); }
+
+        /* Code file header */
+        .file-header {
+            background: var(--gray-100);
+            padding: 10px 16px;
+            border-radius: 8px 8px 0 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-200);
+            border-bottom: none;
+        }
+
+        .file-header + pre {
+            border-radius: 0 0 10px 10px;
+            margin-top: 0;
+        }
+
+        /* Architecture diagram */
+        .arch-diagram {
+            background: white;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        /* Stats */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin-top: 4px;
+        }
+
+        /* Toggle */
+        details {
+            margin: 15px 0;
+        }
+
+        summary {
+            cursor: pointer;
+            padding: 10px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            font-weight: 500;
+            color: var(--gray-700);
+            transition: background 0.2s;
+        }
+
+        summary:hover {
+            background: var(--gray-200);
+        }
+
+        details[open] summary {
+            border-radius: 8px 8px 0 0;
+            background: var(--primary);
+            color: white;
+        }
+
+        details .detail-content {
+            padding: 20px;
+            border: 1px solid var(--gray-200);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            background: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .sidebar { transform: translateX(-100%); }
+            .main { margin-left: 0; padding: 20px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* Print */
+        @media print {
+            .sidebar { display: none; }
+            .main { margin-left: 0; }
+        }
+
+        /* Scroll margin for anchors */
+        [id] { scroll-margin-top: 20px; }
+
+        /* Smooth scroll */
+        html { scroll-behavior: smooth; }
+
+        /* Grade colors */
+        .grade-1 { color: #16a34a; font-weight: 600; }
+        .grade-2 { color: #65a30d; font-weight: 600; }
+        .grade-3 { color: #d97706; font-weight: 600; }
+        .grade-4 { color: #dc2626; font-weight: 600; }
+        .grade-5 { color: #7c3aed; font-weight: 600; }
+
+        /* Thread diagram */
+        .thread-diagram {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .thread-box {
+            background: white;
+            border: 2px solid var(--primary);
+            border-radius: 10px;
+            padding: 15px 20px;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .thread-box .thread-name {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 14px;
+        }
+
+        .thread-box .thread-file {
+            font-size: 12px;
+            color: var(--gray-500);
+            font-family: var(--font-mono);
+        }
+
+        .thread-box .thread-desc {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-top: 6px;
+        }
+
+        .thread-connector {
+            display: flex;
+            align-items: center;
+            color: var(--gray-400);
+            font-size: 24px;
+        }
+
+        /* Formula */
+        .formula {
+            background: var(--gray-100);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 15px 0;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            color: var(--gray-800);
+            border-left: 4px solid var(--primary);
+        }
+
+        .formula .highlight {
+            color: var(--primary);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar Navigation -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h2>实时单精子优选分级系统</h2>
+        <div class="version">v2.0 | 2026-05-23</div>
+    </div>
+    <nav>
+        <div class="section-title">概述</div>
+        <a href="#intro">1. 项目简介</a>
+        <a href="#overview" class="indent">1.1 通俗理解</a>
+        <a href="#tech-stack" class="indent">1.2 技术栈</a>
+        <a href="#architecture">2. 系统架构</a>
+        <a href="#threads" class="indent">2.1 多线程架构</a>
+        <a href="#pipeline" class="indent">2.2 数据流水线</a>
+
+        <div class="section-title">安装与配置</div>
+        <a href="#install">3. 环境安装</a>
+        <a href="#hardware" class="indent">3.1 硬件要求</a>
+        <a href="#software" class="indent">3.2 软件依赖</a>
+        <a href="#steps" class="indent">3.3 安装步骤</a>
+
+        <div class="section-title">核心算法</div>
+        <a href="#detection">4. YOLOv8 检测</a>
+        <a href="#tracking">5. JPDAF 跟踪</a>
+        <a href="#segmentation">6. ADSCNet 分割</a>
+        <a href="#kinematics">7. 运动学参数</a>
+        <a href="#morphology">8. 形态学参数</a>
+        <a href="#grading">9. 精子分级</a>
+
+        <div class="section-title">稳定机制</div>
+        <a href="#ema">10. EMA 平滑</a>
+        <a href="#voting">11. 等级投票</a>
+        <a href="#hysteresis">12. 滞后切换</a>
+        <a href="#edge">13. 边缘检测</a>
+
+        <div class="section-title">选择逻辑</div>
+        <a href="#scoring">14. 综合评分</a>
+        <a href="#scheduling">15. 调度策略</a>
+        <a href="#candidate-pool">16. 候选池</a>
+
+        <div class="section-title">数据存储</div>
+        <a href="#database">17. 数据库设计</a>
+
+        <div class="section-title">代码详解</div>
+        <a href="#code-main">18.1 main.py</a>
+        <a href="#code-app">18.2 app.py</a>
+        <a href="#code-video">18.3 video_thread.py</a>
+        <a href="#code-camera">18.4 camera_thread.py</a>
+        <a href="#code-detection">18.5 detection_thread.py</a>
+        <a href="#code-segment">18.6 segment_thread.py</a>
+        <a href="#code-tracker">18.7 jpdaf_tracker.py</a>
+        <a href="#code-registry">18.8 sperm_registry.py</a>
+        <a href="#code-modules">18.9 modules.py</a>
+        <a href="#code-zoo">18.10 model_zoo/</a>
+
+        <div class="section-title">附录</div>
+        <a href="#usage">19. 使用指南</a>
+        <a href="#faq">20. 常见问题</a>
+        <a href="#constants">21. 常量速查</a>
+        <a href="#glossary">22. 术语表</a>
+    </nav>
+</aside>
+
+<!-- Main Content -->
+<main class="main">
+
+<!-- Document Header -->
+<header class="doc-header">
+    <h1>实时单精子优选分级系统</h1>
+    <div class="subtitle">Sperm Selection v2.0 — 项目技术文档</div>
+    <div class="meta">
+        <span>版本 2.0</span>
+        <span>|</span>
+        <span>更新于 2026-05-23</span>
+        <span>|</span>
+        <span>作者: Simon</span>
+    </div>
+    <p style="margin-top:15px;color:var(--gray-500);font-size:14px;">
+        适用对象：新入职程序员（无需软件开发经验）
+    </p>
+</header>
+
+<!-- ==================== Section 1: 项目简介 ==================== -->
+<section id="intro">
+    <h2>1. 项目简介</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 这个项目是做什么的？</div>
+        <p>这是一个<strong>实时单精子优选分级系统</strong>。它的核心工作流程是：</p>
+        <div class="flow-box">
+            <span class="flow-step">看见精子</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">找到精子</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">跟踪精子</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">分析精子</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">给精子打分</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">选出最优</span>
+        </div>
+        <ol>
+            <li><strong>看见精子</strong> — 用显微镜摄像头拍摄精液样本的视频</li>
+            <li><strong>找到精子</strong> — 用 AI（深度学习）自动识别视频中的每一个精子</li>
+            <li><strong>跟踪精子</strong> — 持续追踪每个精子的运动轨迹</li>
+            <li><strong>分析精子</strong> — 测量每个精子的运动速度、头部形状、颈部形态等参数</li>
+            <li><strong>给精子打分</strong> — 根据 WHO 标准给精子分级（1级最好，5级最差）</li>
+            <li><strong>选出最优</strong> — 从几百个精子中自动选出形态和运动能力综合最优的那个</li>
+            <li><strong>实时展示</strong> — 在屏幕上用绿色方框标出"最佳精子"，供医生观察</li>
+        </ol>
+    </div>
+
+    <div id="overview" class="info-box tip">
+        <div class="label">通俗理解</div>
+        <p style="margin:0;">想象一个操场上有很多人在跑步。这个系统就像一个"智能裁判"：它能同时看到操场上所有人（检测），能记住每个人是谁、跑得多快（跟踪），能测量每个人的身高、体型（形态分析），能根据速度和体型综合打分（分级），并从中选出最优秀的运动员，一直关注他（最优选择）。</p>
+    </div>
+
+    <div id="tech-stack">
+        <h3>1.2 技术栈</h3>
+        <table>
+            <thead>
+                <tr><th>组件</th><th>技术</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>检测模型</td><td><span class="tag tag-blue">YOLOv8</span> + <span class="tag tag-green">TensorRT</span></td><td>实时检测视频中的精子</td></tr>
+                <tr><td>跟踪算法</td><td><span class="tag tag-blue">JPDAF</span></td><td>多目标跟踪，处理遮挡和交叉</td></tr>
+                <tr><td>分割模型</td><td><span class="tag tag-blue">ADSCNet</span> + <span class="tag tag-green">TensorRT</span></td><td>精确分割精子头部和颈部</td></tr>
+                <tr><td>GUI 框架</td><td><span class="tag tag-yellow">PyQt6</span></td><td>桌面图形界面</td></tr>
+                <tr><td>数据库</td><td><span class="tag tag-gray">SQLite</span> (WAL)</td><td>持久化存储精子数据</td></tr>
+                <tr><td>GPU 加速</td><td><span class="tag tag-green">CUDA</span> + TensorRT</td><td>模型推理加速</td></tr>
+                <tr><td>相机 SDK</td><td><span class="tag tag-gray">pypylon</span> (Basler)</td><td>工业相机控制</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ==================== Section 2: 系统架构 ==================== -->
+<section id="architecture">
+    <h2>2. 系统架构总览</h2>
+
+    <div id="threads">
+        <h3>2.1 多线程架构</h3>
+        <p>系统采用<strong>四线程流水线</strong>设计，各线程通过 Qt 信号/槽机制通信：</p>
+
+        <div class="thread-diagram">
+            <div class="thread-box" style="border-color: #2563eb;">
+                <div class="thread-name">VideoThread</div>
+                <div class="thread-file">video_thread.py</div>
+                <div class="thread-desc">视频采集</div>
+            </div>
+            <div class="thread-connector">&rarr;</div>
+            <div class="thread-box" style="border-color: #16a34a;">
+                <div class="thread-name">DetectionThread</div>
+                <div class="thread-file">detection_thread.py</div>
+                <div class="thread-desc">目标检测 + 跟踪</div>
+            </div>
+            <div class="thread-connector">&rarr;</div>
+            <div class="thread-box" style="border-color: #d97706;">
+                <div class="thread-name">SegmentThread</div>
+                <div class="thread-file">segment_thread.py</div>
+                <div class="thread-desc">分割 + 形态分析</div>
+            </div>
+        </div>
+
+        <div style="text-align:center;margin:10px 0;">
+            <div class="thread-diagram" style="justify-content:center;">
+                <div class="thread-box" style="border-color: #7c3aed;">
+                    <div class="thread-name">CameraThread</div>
+                    <div class="thread-file">camera_thread.py</div>
+                    <div class="thread-desc">Basler 相机采集</div>
+                </div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr><th>线程</th><th>文件</th><th>职责</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>VideoThread</strong></td><td>video_thread.py</td><td>读取视频文件，输出帧图像</td></tr>
+                <tr><td><strong>CameraThread</strong></td><td>camera_thread.py</td><td>Basler 工业相机实时采集</td></tr>
+                <tr><td><strong>DetectionThread</strong></td><td>detection_thread.py</td><td>YOLOv8 检测 + JPDAF 跟踪 + 最优精子选择</td></tr>
+                <tr><td><strong>SegmentThread</strong></td><td>segment_thread.py</td><td>ADSCNet 分割 + 形态学测量 + 精子分级</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="pipeline">
+        <h3>2.2 数据流水线</h3>
+        <div class="arch-diagram">
+视频/相机输入
+    │
+    ▼
+┌─────────────────┐
+│   VideoThread    │  读取帧，发送 new_frame 信号
+└────────┬────────┘
+         │ new_frame (BGR numpy array)
+         ▼
+┌─────────────────┐
+│ DetectionThread  │  YOLOv8 推理 → JPDAF 跟踪 → 精子注册表
+│                  │  ┌──────────────┐
+│                  │  │ SpermRegistry │ ← 更新运动学参数
+│                  │  └──────┬───────┘
+│                  │         │ select_for_segmentation(K=10)
+│                  │         │ get_best_sperm()
+└────────┬────────┘         │
+         │ detection_result │
+         ▼                  │
+┌─────────────────┐         │
+│  SegmentThread   │  ADSCNet 分割 → 形态学测量 → 分级
+│                  │  ┌──────────────┐
+│                  │  │ SpermRegistry │ ← 更新形态学参数
+│                  │  └──────────────┘
+└────────┬────────┘
+         │ segmented_frame (带标注的图像)
+         ▼
+    显示在 UI 上
+    绿色方框 = 最优精子</div>
+    </div>
+</section>
+
+<!-- ==================== Section 3: 环境安装 ==================== -->
+<section id="install">
+    <h2>3. 环境安装与依赖配置</h2>
+
+    <div id="hardware">
+        <h3>3.1 硬件要求</h3>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value">RTX 3060+</div>
+                <div class="stat-label">推荐 GPU</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">8 GB+</div>
+                <div class="stat-label">显存</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">16 GB+</div>
+                <div class="stat-label">系统内存</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">50 GB+</div>
+                <div class="stat-label">SSD 空间</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="software">
+        <h3>3.2 软件依赖</h3>
+
+        <h4>Python 版本</h4>
+        <p><strong>Python 3.9</strong>（必须）</p>
+
+        <h4>核心依赖包</h4>
+        <table>
+            <thead>
+                <tr><th>包名</th><th>版本</th><th>用途</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>torch</code></td><td>2.5.0</td><td>PyTorch 深度学习框架</td></tr>
+                <tr><td><code>torchvision</code></td><td>0.20.0</td><td>视觉模型工具</td></tr>
+                <tr><td><code>tensorrt</code></td><td>10.9.0.34</td><td>NVIDIA 推理加速引擎</td></tr>
+                <tr><td><code>pycuda</code></td><td>-</td><td>CUDA Python 绑定</td></tr>
+                <tr><td><code>onnxruntime-gpu</code></td><td>-</td><td>ONNX 模型推理</td></tr>
+                <tr><td><code>opencv-python</code></td><td>-</td><td>图像处理</td></tr>
+                <tr><td><code>PyQt6</code></td><td>-</td><td>GUI 框架</td></tr>
+                <tr><td><code>numpy</code></td><td>-</td><td>数值计算</td></tr>
+                <tr><td><code>albumentations</code></td><td>-</td><td>图像预处理增强</td></tr>
+                <tr><td><code>pypylon</code></td><td>-</td><td>Basler 相机 SDK</td></tr>
+                <tr><td><code>pyyaml</code></td><td>-</td><td>YAML 配置文件解析</td></tr>
+            </tbody>
+        </table>
+
+        <h4>NVIDIA 驱动与工具链</h4>
+        <table>
+            <thead>
+                <tr><th>组件</th><th>版本</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>CUDA</td><td>12.1</td><td>GPU 计算平台</td></tr>
+                <tr><td>cuDNN</td><td>8.7.29</td><td>深度学习加速库</td></tr>
+                <tr><td>TensorRT</td><td>10.9.0.34</td><td>推理优化引擎（项目内置）</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="steps">
+        <h3>3.3 安装步骤</h3>
+
+        <div class="card">
+            <div class="card-title"><span class="icon">1</span> 安装 CUDA 12.1</div>
+            <ol>
+                <li>下载 CUDA 12.1：<code>https://developer.nvidia.com/cuda-12-1-1-download-archive</code></li>
+                <li>安装时选择"自定义安装"，确保安装 CUDA Toolkit</li>
+                <li>添加环境变量：
+                    <ul>
+                        <li><code>YOUR_PATH\cuda12.1-install\libnvvp</code></li>
+                        <li><code>YOUR_PATH\cuda12.1-install\bin</code></li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="icon">2</span> 安装 cuDNN 8.7.29</div>
+            <ol>
+                <li>下载 cuDNN：<code>https://developer.nvidia.com/rdp/cudnn-archive</code></li>
+                <li>解压后将 <code>bin/</code>、<code>include/</code>、<code>lib/</code> 文件夹复制到 CUDA 安装目录</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="icon">3</span> 创建 Conda 虚拟环境</div>
+            <pre><code># 创建环境
+conda create -n spermselectionv2 python=3.9
+conda activate spermselectionv2
+
+# 安装 PyTorch（CUDA 12.1 版本）
+pip install torch==2.5.0 torchvision==0.20.0 torchaudio==2.5.0 --index-url https://download.pytorch.org/whl/cu121
+
+# 安装 ONNX Runtime GPU 版
+pip install onnxruntime-gpu -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 安装其他依赖
+pip install PyQt6 opencv-python numpy albumentations pypylon pyyaml pycuda</code></pre>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="icon">4</span> 安装 TensorRT</div>
+            <p>项目已内置 TensorRT 10.9.0.34（在 <code>TensorRT-10.9.0.34/</code> 目录），无需额外下载。</p>
+            <pre><code># 安装 TensorRT Python wheel
+pip install TensorRT-10.9.0.34/python/tensorrt-10.9.0.34-cp39-none-win_amd64.whl</code></pre>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><span class="icon">5</span> 验证安装</div>
+            <pre><code>import onnxruntime as ort
+import tensorrt
+import torch
+
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"ONNX Runtime device: {ort.get_device()}")
+print(f"ONNX providers: {ort.get_available_providers()}")
+print(f"TensorRT: {tensorrt.__version__}")</code></pre>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== Section 4: YOLOv8 检测 ==================== -->
+<section id="detection">
+    <h2>4. YOLOv8 目标检测</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 什么是 YOLOv8？</div>
+        <p>YOLO（You Only Look Once）是一种<strong>实时目标检测</strong>算法。你给它一张图片，它能告诉你：图片里有哪些物体（精子），每个物体在哪里（用方框标出位置），它有多确信（置信度分数）。YOLOv8 是 YOLO 系列的最新版本，速度快、精度高。</p>
+    </div>
+
+    <h3>在本项目中的应用</h3>
+    <div class="flow-diagram">
+        <div class="flow-box">
+            <span class="flow-step" style="background:#6b7280;">输入：显微镜图像</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">BGR &rarr; RGB</span>
+            <span class="flow-step">缩放 640&times;640</span>
+            <span class="flow-step">归一化 [0,1]</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step" style="background:#16a34a;">YOLOv8 推理 (TensorRT FP16)</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">置信度过滤 (&ge;0.25)</span>
+            <span class="flow-step">NMS 去重 (IoU&ge;0.45)</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step" style="background:#d97706;">输出：每个精子的边界框 + 置信度</span>
+        </div>
+    </div>
+
+    <h3>关键参数</h3>
+    <table>
+        <thead>
+            <tr><th>参数</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>输入尺寸</td><td>640&times;640</td><td>模型输入分辨率</td></tr>
+            <tr><td>置信度阈值</td><td>0.25</td><td>低于此值的检测结果被丢弃</td></tr>
+            <tr><td>NMS IoU 阈值</td><td>0.45</td><td>重叠度超过此值的框被合并</td></tr>
+            <tr><td>最大检测数</td><td>150</td><td>每帧最多检测 150 个目标</td></tr>
+            <tr><td>数据类型</td><td>FP16</td><td>半精度浮点，加速推理</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 5: JPDAF 跟踪 ==================== -->
+<section id="tracking">
+    <h2>5. JPDAF 多目标跟踪</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 为什么需要跟踪？</div>
+        <p>检测只能告诉我们"这一帧里有精子 A、B、C"，但不知道"A 在上一帧是哪个"。跟踪算法解决这个问题：它给每个精子分配一个<strong>唯一 ID</strong>，跨帧持续追踪。</p>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 什么是 JPDAF？</div>
+        <p>JPDAF（Joint Probabilistic Data Association Filter，联合概率数据关联滤波器）是一种多目标跟踪算法。它擅长处理：</p>
+        <ul>
+            <li><strong>多个目标靠近</strong>：精子们经常游到一起</li>
+            <li><strong>目标交叉</strong>：两个精子的轨迹交叉时，不会搞混</li>
+            <li><strong>漏检</strong>：某一帧没检测到某个精子，跟踪不会断</li>
+            <li><strong>新目标出现</strong>：新的精子进入视野时自动创建新轨迹</li>
+        </ul>
+    </div>
+
+    <h3>算法流程</h3>
+    <div class="flow-diagram">
+        <div class="flow-box down">
+            <span class="flow-step" style="background:#6b7280;">当前帧检测结果（N 个边界框）</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">预测 (Predict)</span>
+            <span style="color:var(--gray-500);font-size:13px;">卡尔曼滤波器预测下一帧位置</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">验证 (Validate)</span>
+            <span style="color:var(--gray-500);font-size:13px;">检查哪些检测在门控区域内</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">聚类 (Cluster)</span>
+            <span style="color:var(--gray-500);font-size:13px;">将有重叠关联的目标分组</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">概率计算 (JPDAF)</span>
+            <span style="color:var(--gray-500);font-size:13px;">枚举所有可能的关联事件</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step">更新 (Correct)</span>
+            <span style="color:var(--gray-500);font-size:13px;">用加权创新更新轨迹状态</span>
+        </div>
+        <div style="font-size:20px;color:var(--gray-400);">&darr;</div>
+        <div class="flow-box">
+            <span class="flow-step" style="background:#d97706;">管理：删除消失轨迹，创建新轨迹</span>
+        </div>
+    </div>
+
+    <h3>卡尔曼滤波器</h3>
+    <p>每个轨迹内部使用<strong>4 维状态卡尔曼滤波器</strong>：</p>
+
+    <div class="card">
+        <p><strong>状态向量</strong>：<code>[x, y, vx, vy]</code>（位置 + 速度）</p>
+        <p><strong>状态转移矩阵</strong> F（假设 30fps）：</p>
+        <pre><code>F = [1  0  1/30  0  ]
+    [0  1  0     1/30]
+    [0  0  1     0   ]
+    [0  0  0     1   ]</code></pre>
+        <p><strong>自适应过程噪声</strong>：<code>Q = 0.9 &times; Q_prev + 0.1 &times; Q0</code></p>
+    </div>
+
+    <h3>关键参数</h3>
+    <table>
+        <thead>
+            <tr><th>参数</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>过程噪声</td><td>20.0</td><td>卡尔曼滤波器的过程噪声</td></tr>
+            <tr><td>测量噪声</td><td>10.0</td><td>卡尔曼滤波器的测量噪声</td></tr>
+            <tr><td>检测概率</td><td>0.80</td><td>期望的检测率</td></tr>
+            <tr><td>门控概率</td><td>0.95</td><td>门控区域覆盖概率</td></tr>
+            <tr><td>删除阈值</td><td>5.0</td><td>轨迹删除的门控椭圆放大倍数</td></tr>
+            <tr><td>最大连续丢失</td><td>10 帧</td><td>超过则删除轨迹</td></tr>
+            <tr><td>最小轨迹年龄</td><td>5 帧</td><td>超过此年龄才报告为活跃轨迹</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 6: ADSCNet 分割 ==================== -->
+<section id="segmentation">
+    <h2>6. ADSCNet 语义分割</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 什么是语义分割？</div>
+        <p>语义分割是给图片中的<strong>每个像素</strong>分类。在本项目中，它把精子的 64&times;64 ROI 图像分成 4 类：</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>类别索引</th><th>名称</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>0</td><td><span class="tag tag-red">顶体 (Acrosome)</span></td><td>精子头部前端</td></tr>
+            <tr><td>1</td><td><span class="tag tag-green">细胞核 (Nucleus)</span></td><td>精子头部主体</td></tr>
+            <tr><td>2</td><td><span class="tag tag-blue">不可测量头部</span></td><td>形态异常的头部</td></tr>
+            <tr><td>3</td><td><span class="tag tag-yellow">颈部 (Neck)</span></td><td>连接头部和尾部的部分</td></tr>
+        </tbody>
+    </table>
+
+    <h3>ADSCNet 架构</h3>
+    <p>ADSCNet（Asymmetric Depthwise Separable Convolution Network）是一种轻量级实时分割网络：</p>
+
+    <div class="arch-diagram">
+输入: 64×64×3 (RGB 图像)
+    │
+    ▼
+编码器 (Encoder)
+    ├─ Conv0: 3→32 通道, stride=2    → 32×32×32
+    ├─ Conv1: ADSCModule(32)         → 32×32×32
+    ├─ Conv2-4: 32→32→64             → 16×16×64
+    └─ Conv5: ADSCModule(64, s=2)    → 8×8×128
+    │
+    ▼
+上下文模块 (DDCC)
+    ├─ 4 个不同膨胀率的 ADSCModule: [3, 5, 9, 13]
+    ├─ 密集连接：每个模块接收前面所有模块的输出
+    └─ 输出: 8×8×128
+    │
+    ▼
+解码器 (Decoder)
+    ├─ Up1: 反卷积 128→64 + 跳跃连接  → 16×16×64
+    ├─ Up2: 反卷积 64→32              → 32×32×32
+    ├─ Up3: 反卷积 32→16              → 64×64×16
+    └─ Conv: 1×1 卷积 16→4            → 64×64×4
+    │
+    ▼
+输出: 64×64×4 (4 类概率图)</div>
+
+    <div class="info-box info">
+        <div class="label">ADSCModule 核心</div>
+        <p style="margin:0;">使用非对称卷积 <code>(3,1)</code> 和 <code>(1,3)</code> 代替标准 <code>3&times;3</code> 卷积，减少计算量。</p>
+    </div>
+
+    <h3>训练配置</h3>
+    <table>
+        <thead>
+            <tr><th>参数</th><th>值</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>输入尺寸</td><td>64&times;64</td></tr>
+            <tr><td>类别数</td><td>4</td></tr>
+            <tr><td>损失函数</td><td>BCEDiceLoss</td></tr>
+            <tr><td>优化器</td><td>Adam (lr=0.001)</td></tr>
+            <tr><td>学习率调度</td><td>CosineAnnealingLR</td></tr>
+            <tr><td>批大小</td><td>8</td></tr>
+            <tr><td>训练轮数</td><td>100</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 7: 运动学参数 ==================== -->
+<section id="kinematics">
+    <h2>7. 运动学参数计算</h2>
+    <p>运动学参数描述精子的<strong>运动特征</strong>，主要在 <code>jpdaf_tracker.py</code> 的 <code>JPDATrack.calculate_motion_parameters()</code> 中计算。</p>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title">VSL（直线运动速度）</div>
+            <p><strong>定义</strong>：精子在一定时间内走过的直线距离除以时间。</p>
+            <div class="formula">
+                <span class="highlight">VSL</span> = distance(起点, 终点) / 时间差<br>
+                单位: &mu;m/s（微米/秒）
+            </div>
+            <p><strong>通俗理解</strong>：如果精子从 A 点直线游到 B 点，VSL 就是 A&rarr;B 的速度。游得越直越快，VSL 越高。</p>
+        </div>
+        <div class="card">
+            <div class="card-title">ALH（头部侧向振幅）</div>
+            <p><strong>定义</strong>：精子头部偏离直线运动方向的平均距离。</p>
+            <div class="formula">
+                <span class="highlight">ALH</span> = 2 &times; 平均垂直距离<br>
+                单位: &mu;m（微米）
+            </div>
+            <p><strong>通俗理解</strong>：精子游泳时头部会左右摆动，ALH 就是摆动的幅度。摆动太大说明运动不协调。</p>
+        </div>
+    </div>
+
+    <div class="info-box info">
+        <div class="label">像素到微米转换</div>
+        <p style="margin:0;"><code>pixel_to_micron = 0.7</code>（1 像素 = 0.7 微米）</p>
+    </div>
+</section>
+
+<!-- ==================== Section 8: 形态学参数 ==================== -->
+<section id="morphology">
+    <h2>8. 形态学参数计算</h2>
+    <p>形态学参数描述精子的<strong>物理形状</strong>，主要在 <code>segment_thread.py</code> 中根据分割结果计算。</p>
+
+    <h3>头部参数</h3>
+    <table>
+        <thead>
+            <tr><th>参数</th><th>计算方法</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>head_length</td><td>椭圆拟合长轴</td><td>头部长度（&mu;m）</td></tr>
+            <tr><td>head_width</td><td>椭圆拟合短轴</td><td>头部宽度（&mu;m）</td></tr>
+            <tr><td>head_ratio</td><td>length / width</td><td>头部长宽比</td></tr>
+            <tr><td>head_area</td><td>轮廓面积 &times; pixel&sup2;_to_&mu;m&sup2;</td><td>头部面积（&mu;m&sup2;）</td></tr>
+        </tbody>
+    </table>
+
+    <h3>颈部参数</h3>
+    <table>
+        <thead>
+            <tr><th>参数</th><th>计算方法</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>neck_width</td><td>距离变换 95 分位数 &times; 2</td><td>颈部宽度（&mu;m）</td></tr>
+            <tr><td>neck_length</td><td>骨架点链长度之和</td><td>颈部长度（&mu;m）</td></tr>
+            <tr><td>neck_bent_angle</td><td>骨架方向变化最大角度</td><td>颈部弯曲角度（&deg;）</td></tr>
+            <tr><td>neck_head_angle</td><td>头部椭圆长轴 vs 颈部起始方向</td><td>头颈角度（&deg;）</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 9: 精子分级 ==================== -->
+<section id="grading">
+    <h2>9. 精子分级算法</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">!</span> 分级标准</div>
+        <p>系统根据运动学和形态学参数，将精子分为 5 个等级：<span class="grade-1">Grade 1</span> 最好，<span class="grade-5">Grade 5</span> 最差，-1 表示数据不足无法分级。</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>等级</th><th>含义</th><th>VSL (&mu;m/s)</th><th>ALH (&mu;m)</th><th>头部面积</th><th>颈部弯曲角</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><span class="grade-1">Grade 1</span></td><td>优秀</td><td>&ge;11.0</td><td>&le;0.6</td><td>正常范围</td><td>&lt;10&deg;</td></tr>
+            <tr><td><span class="grade-2">Grade 2</span></td><td>良好</td><td>&ge;10.0</td><td>&le;0.8</td><td>-</td><td>-</td></tr>
+            <tr><td><span class="grade-3">Grade 3</span></td><td>一般</td><td>&ge;7.5</td><td>&le;1.0</td><td>-</td><td>-</td></tr>
+            <tr><td><span class="grade-4">Grade 4</span></td><td>较差</td><td>&ge;5.0</td><td>-</td><td>(10,90]</td><td>[10,20)&deg;</td></tr>
+            <tr><td><span class="grade-5">Grade 5</span></td><td>差</td><td>&ge;2.0</td><td>-</td><td>(10,110]</td><td>(0,34)&deg;</td></tr>
+            <tr><td>-1</td><td>未分级</td><td>&lt;2.0</td><td>-</td><td>-</td><td>-</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 10: EMA ==================== -->
+<section id="ema">
+    <h2>10. EMA 指数移动平均</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 什么是 EMA？</div>
+        <p>EMA（Exponential Moving Average）是一种数据平滑方法。它给新数据和旧数据不同的权重，让结果不会因为某一次测量的波动而剧烈变化。</p>
+        <div class="formula">
+            <span class="highlight">smooth_new</span> = &alpha; &times; raw_new + (1 - &alpha;) &times; smooth_old<br>
+            其中 &alpha; = 0.15（平滑系数）
+        </div>
+        <p><strong>通俗理解</strong>：想象你在开车看导航。导航不会因为 GPS 跳了一下就突然改变路线，它会"综合考虑"之前的位置。&alpha; 就是"多大程度上相信最新的 GPS 信号"。</p>
+    </div>
+
+    <h3>应用范围</h3>
+    <table>
+        <thead>
+            <tr><th>参数类别</th><th>具体参数</th><th>平滑字段名</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>运动学</td><td>VSL</td><td>vsl_smooth</td></tr>
+            <tr><td>运动学</td><td>ALH</td><td>alh_smooth</td></tr>
+            <tr><td>形态学</td><td>头部长度</td><td>head_length_smooth</td></tr>
+            <tr><td>形态学</td><td>头部宽度</td><td>head_width_smooth</td></tr>
+            <tr><td>形态学</td><td>头部长宽比</td><td>head_ratio_smooth</td></tr>
+            <tr><td>形态学</td><td>头部面积</td><td>head_area_smooth</td></tr>
+            <tr><td>形态学</td><td>颈部宽度</td><td>neck_width_smooth</td></tr>
+            <tr><td>形态学</td><td>颈部弯曲角</td><td>neck_bent_angle_smooth</td></tr>
+            <tr><td>形态学</td><td>头颈角</td><td>neck_head_angle_smooth</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 11: 等级投票 ==================== -->
+<section id="voting">
+    <h2>11. 等级投票机制</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 为什么要投票？</div>
+        <p>精子的形态学分级可能因为测量噪声而在帧与帧之间波动。投票机制确保只有<strong>稳定一致</strong>的等级才会被采纳。</p>
+    </div>
+
+    <h3>投票规则</h3>
+    <div class="flow-diagram">
+        <div class="flow-box down">
+            <span class="flow-step" style="background:#6b7280;">维护滑动窗口，记录最近 20 次测量的等级</span>
+            <span class="flow-arrow">&darr;</span>
+            <span class="flow-step">过滤掉 -1（未分级）的记录</span>
+            <span class="flow-arrow">&darr;</span>
+            <span class="flow-step">统计每个等级出现的次数</span>
+            <span class="flow-arrow">&darr;</span>
+            <span class="flow-step" style="background:#16a34a;">如果某个等级占比 &ge; 60% &rarr; 采纳为"稳定等级"</span>
+            <span class="flow-arrow">&darr;</span>
+            <span class="flow-step" style="background:#dc2626;">否则 &rarr; 稳定等级 = -1（待定）</span>
+        </div>
+    </div>
+
+    <div class="info-box tip">
+        <div class="label">示例</div>
+        <p style="margin:0;">最近 20 次测量: [4,4,4,4,4,4,4,4,4,4,5,5,4,4,4,4,4,4,4,4]<br>
+        Grade 4 出现 18 次 = 90% &ge; 60% &rarr; 稳定等级 = 4</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>参数</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>窗口大小</td><td>20</td><td>滑动窗口记录的测量次数</td></tr>
+            <tr><td>投票阈值</td><td>0.6 (60%)</td><td>等级被采纳的最低占比</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 12: 滞后切换 ==================== -->
+<section id="hysteresis">
+    <h2>12. 滞后切换机制</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 为什么要滞后？</div>
+        <p>假设当前最优精子是 A（得分 0.85）。突然 B 的得分变成 0.86，如果立即切换，下一帧 A 可能又变成 0.87。这样来回切换会导致屏幕上的绿框不断闪烁。</p>
+        <p><strong>滞后机制要求</strong>：挑战者必须连续 30 帧都比当前最优高出 0.05 分，才会真正切换。</p>
+    </div>
+
+    <h3>切换规则</h3>
+    <div class="formula">
+        当前最优精子: A (score = 0.80)<br>
+        挑战者: B (score = 0.86)<br><br>
+        帧 1:  B - A = 0.06 &gt; 0.05 &rarr; hold_count = 1<br>
+        帧 2:  B - A = 0.07 &gt; 0.05 &rarr; hold_count = 2<br>
+        ...<br>
+        帧 30: B - A = 0.05 &gt; 0.05 &rarr; hold_count = 30<br>
+        <span class="highlight">&rarr; 切换！最优精子变为 B</span>
+    </div>
+
+    <div class="info-box warning">
+        <div class="label">注意</div>
+        <p style="margin:0;">如果中间某一帧 B 的优势不足 0.05，<code>hold_count</code> 重置为 0，重新开始计数。</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>参数</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>持续帧数</td><td>30</td><td>挑战者需要持续领先的帧数</td></tr>
+            <tr><td>分数差距</td><td>0.05</td><td>挑战者必须超过当前最优的分数</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 13: 边缘检测 ==================== -->
+<section id="edge">
+    <h2>13. 边缘检测与强制切换</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 为什么要检测边缘？</div>
+        <p>当最优精子游到画面边缘时，它的检测框可能不完整（部分超出画面），导致形态学测量不准确。此时应该<strong>立即切换</strong>到其他精子，而不是等滞后机制慢慢切换。</p>
+    </div>
+
+    <h3>边缘判断</h3>
+    <p>使用<strong>检测框（bounding box）</strong>是否触碰画面边界来判断：</p>
+    <pre><code>def _is_bbox_at_edge(rec, frame_w, frame_h):
+    return (rec.box_x1 &lt;= 0 or       # 左边触碰
+            rec.box_y1 &lt;= 0 or        # 上边触碰
+            rec.box_x2 &gt;= frame_w or  # 右边触碰
+            rec.box_y2 &gt;= frame_h)    # 下边触碰</code></pre>
+
+    <div class="info-box danger">
+        <div class="label">触发条件</div>
+        <p style="margin:0;"><strong>只要检测框的任意一边碰到画面边界，就触发强制切换。</strong></p>
+    </div>
+
+    <h3>切换逻辑</h3>
+    <div class="formula">
+        如果当前最优精子的 bbox 触碰边缘:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;从候选池中选择排名最高的非边缘精子<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;如果有 &rarr; <span class="highlight">立即切换（跳过滞后机制）</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;如果没有 &rarr; 保持当前（没有更好的选择）
+    </div>
+</section>
+
+<!-- ==================== Section 14: 综合评分 ==================== -->
+<section id="scoring">
+    <h2>14. 综合评分公式</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">=</span> 综合评分公式</div>
+        <div class="formula">
+            <span class="highlight">综合分</span> = 0.5 &times; 运动学分 + 0.5 &times; 形态学分 &times; 置信度
+        </div>
+        <p>其中：</p>
+        <ul>
+            <li><strong>运动学分</strong> = kinematic_continuous（基于 EMA 平滑后的 VSL 和 ALH）</li>
+            <li><strong>形态学分</strong> = morphology_continuous（基于投票后的稳定等级）</li>
+            <li><strong>置信度</strong> = min(测量次数 / 20, 1.0)</li>
+        </ul>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title">运动学连续分</div>
+            <div class="formula">
+                vsl_score = min(vsl_smooth / 30.0, 1.0)<br>
+                alh_score = max(0, 1 - alh_smooth / 2.0)<br><br>
+                <span class="highlight">运动学分</span> = 0.7 &times; vsl_score + 0.3 &times; alh_score
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">形态学连续分</div>
+            <div class="formula">
+                <span class="highlight">形态学分</span> = max(0, (6 - stable_grade) / 5.0)<br><br>
+                Grade 1 &rarr; 1.0<br>
+                Grade 2 &rarr; 0.8<br>
+                Grade 3 &rarr; 0.6<br>
+                Grade 4 &rarr; 0.4<br>
+                Grade 5 &rarr; 0.2<br>
+                -1 或 6 &rarr; 0.0
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">置信度权重</div>
+        <div class="formula">
+            confidence = min(测量次数 / 20, 1.0)<br><br>
+            测量 1 次 &rarr; 0.05（几乎不信任）<br>
+            测量 10 次 &rarr; 0.5（半信半疑）<br>
+            测量 20+ 次 &rarr; 1.0（完全信任）
+        </div>
+    </div>
+</section>
+
+<!-- ==================== Section 15: 调度策略 ==================== -->
+<section id="scheduling">
+    <h2>15. 加权轮转调度</h2>
+    <p>每帧要选择 10 个精子进行分割分析。选择策略是<strong>加权轮转</strong>：</p>
+
+    <div class="card">
+        <div class="formula">
+            morph_need = 1.0 - min(测量次数 / 10, 1.0) &nbsp;&nbsp;<span style="color:var(--gray-500);"># 测量需求</span><br>
+            vsl_norm = min(vsl / 30.0, 1.0) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--gray-500);"># VSL 归一化</span><br>
+            edge_norm = min(到边缘距离 / 200, 1.0) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--gray-500);"># 中心位置</span><br><br>
+            <span class="highlight">调度分</span> = 0.4 &times; morph_need + 0.3 &times; vsl_norm + 0.3 &times; edge_norm<br><br>
+            如果已在候选池中 &rarr; 调度分 &times; 0.3（降低优先级）<br>
+            如果 30 帧未被测量 &rarr; 调度分 &times; 2.0（提高优先级）
+        </div>
+    </div>
+
+    <div class="info-box tip">
+        <div class="label">通俗理解</div>
+        <p style="margin:0;">系统优先安排"还没怎么测过的、游得快的、在画面中间的"精子。已经在候选池里的精子降低优先级，但如果很久没被测到，又会提高优先级。</p>
+    </div>
+</section>
+
+<!-- ==================== Section 16: 候选池 ==================== -->
+<section id="candidate-pool">
+    <h2>16. 候选池管理</h2>
+
+    <div class="card">
+        <div class="card-title">进入候选池的条件</div>
+        <div class="formula">形态学测量次数 &ge; 10 次 &rarr; 自动进入候选池</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">候选池排序规则</div>
+        <p>当需要选择"最优精子"时，从候选池中按以下优先级排序：</p>
+        <ol>
+            <li><strong>综合分</strong>（composite_score）— 高分优先</li>
+            <li><strong>测量次数</strong>（morphology_measurement_count）— 数据多的优先</li>
+            <li><strong>颈部角度之和</strong>（neck_bent_angle + neck_head_angle）— 角度小的优先</li>
+        </ol>
+    </div>
+</section>
+
+<!-- ==================== Section 17: 数据库 ==================== -->
+<section id="database">
+    <h2>17. 数据库设计</h2>
+
+    <h3>数据库表结构</h3>
+    <p>系统使用 SQLite 数据库，包含 3 张表：</p>
+
+    <details>
+        <summary>表 1: sperm_records（精子记录表）— 34 列</summary>
+        <div class="detail-content">
+            <p>每行代表一个被追踪的精子的最新状态。主键为 <code>track_id</code>。</p>
+            <table>
+                <thead>
+                    <tr><th>列名</th><th>类型</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>track_id</td><td>INTEGER</td><td>轨迹 ID（主键）</td></tr>
+                    <tr><td>vsl, alh</td><td>REAL</td><td>运动学原始值</td></tr>
+                    <tr><td>kinematic_grade</td><td>INTEGER</td><td>运动学等级</td></tr>
+                    <tr><td>pos_x, pos_y</td><td>REAL</td><td>最后位置</td></tr>
+                    <tr><td>box_x1~y2</td><td>REAL</td><td>检测框坐标</td></tr>
+                    <tr><td>head_length~area</td><td>REAL</td><td>头部形态学参数</td></tr>
+                    <tr><td>neck_width~angle</td><td>REAL</td><td>颈部形态学参数</td></tr>
+                    <tr><td>morphology_grade</td><td>INTEGER</td><td>形态学等级</td></tr>
+                    <tr><td>morphology_measurement_count</td><td>INTEGER</td><td>测量次数</td></tr>
+                    <tr><td>in_candidate_pool</td><td>INTEGER</td><td>是否在候选池</td></tr>
+                    <tr><td>composite_score</td><td>REAL</td><td>综合评分</td></tr>
+                    <tr><td>vsl_smooth~angle_smooth</td><td>REAL</td><td>EMA 平滑值（9 个）</td></tr>
+                    <tr><td>grade_history</td><td>TEXT</td><td>等级投票历史</td></tr>
+                    <tr><td>stable_morph_grade</td><td>INTEGER</td><td>稳定等级</td></tr>
+                    <tr><td>kinematic_continuous</td><td>REAL</td><td>运动学连续分</td></tr>
+                    <tr><td>morphology_continuous</td><td>REAL</td><td>形态学连续分</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>表 2: morphology_history（形态学历史表）— 追加式日志</summary>
+        <div class="detail-content">
+            <p>每次形态学测量都会插入一行新记录。</p>
+            <table>
+                <thead>
+                    <tr><th>列名</th><th>类型</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>id</td><td>INTEGER</td><td>自增主键</td></tr>
+                    <tr><td>track_id</td><td>INTEGER</td><td>轨迹 ID</td></tr>
+                    <tr><td>timestamp</td><td>REAL</td><td>测量时间戳</td></tr>
+                    <tr><td>frame_number</td><td>INTEGER</td><td>帧号</td></tr>
+                    <tr><td>head_length~area</td><td>REAL</td><td>头部形态学参数</td></tr>
+                    <tr><td>neck_width~angle</td><td>REAL</td><td>颈部形态学参数</td></tr>
+                    <tr><td>vsl, alh</td><td>REAL</td><td>当时的运动学快照</td></tr>
+                    <tr><td>grade</td><td>INTEGER</td><td>测量时的等级</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <details>
+        <summary>表 3: experiment_meta（实验元数据表）</summary>
+        <div class="detail-content">
+            <table>
+                <thead>
+                    <tr><th>列名</th><th>类型</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>key</td><td>TEXT</td><td>键名</td></tr>
+                    <tr><td>value</td><td>TEXT</td><td>值</td></tr>
+                </tbody>
+            </table>
+            <p>目前存储 <code>start_time</code>（实验开始时间）。</p>
+        </div>
+    </details>
+
+    <h3>数据持久化策略</h3>
+    <table>
+        <thead>
+            <tr><th>策略</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>WAL 模式</td><td><code>PRAGMA journal_mode=WAL</code>，支持并发读写</td></tr>
+            <tr><td>批量写入</td><td>每 10 帧执行一次 <code>flush_to_db()</code></td></tr>
+            <tr><td>脏标记</td><td>只有被修改的记录才写入（<code>_dirty_ids</code> 集合）</td></tr>
+            <tr><td>INSERT OR REPLACE</td><td>使用 upsert 语义，避免重复插入</td></tr>
+            <tr><td>追加式日志</td><td><code>morphology_history</code> 表只追加不修改</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 18: 代码详解 ==================== -->
+<section>
+    <h2>18. 代码文件详解</h2>
+
+    <div id="code-main" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.1 main.py — 程序入口</div>
+        <p><strong>大小</strong>：686 B（26 行） | <strong>作用</strong>：程序的启动文件</p>
+        <pre><code>import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'  # 解决 OpenMP 重复库问题
+
+import sys
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
+from app import MainWindow
+
+if __name__ == "__main__":
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    # 自动切换到"实时分析"标签页
+    if hasattr(window, 'tabWidget'):
+        window.tabWidget.setCurrentIndex(1)
+    sys.exit(app.exec())</code></pre>
+        <div class="info-box info">
+            <div class="label">关键点</div>
+            <ul style="margin:0;">
+                <li><code>KMP_DUPLICATE_LIB_OK=TRUE</code>：解决 PyTorch 和 OpenCV 的 OpenMP 冲突</li>
+                <li>高 DPI 支持：确保在高分辨率屏幕上正常显示</li>
+                <li>自动切换到标签页索引 1（实时分析页面）</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="code-app" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.2 app.py — 主窗口与 UI 控制</div>
+        <p><strong>大小</strong>：41 KB（1034 行） | <strong>作用</strong>：主窗口类，管理 UI 布局、线程初始化、信号连接</p>
+        <table>
+            <thead>
+                <tr><th>类</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>FullScreenVideoLabel</code></td><td>全屏视频显示标签，支持双击/ESC 退出</td></tr>
+                <tr><td><code>StatsLabel</code></td><td>统计信息显示标签（黑底绿字）</td></tr>
+                <tr><td><code>MainWindow</code></td><td>主窗口，核心控制类</td></tr>
+            </tbody>
+        </table>
+        <h4>初始化流程</h4>
+        <pre><code>__init__()
+  ├── 设置工作目录
+  ├── 加载 UI 文件 (interfacedesign.ui)
+  ├── setup_window()                    # 窗口尺寸、位置
+  ├── configure_video_label()           # 视频标签配置
+  ├── manually_set_icons()              # 设置图标
+  ├── add_stats_display()               # 创建统计标签
+  ├── reorganize_realtime_analysis_layout()  # 重新组织布局
+  ├── start_video_thread()              # 启动视频线程
+  ├── initialize_detection_thread()     # 初始化检测线程
+  ├── initialize_segment_thread()       # 初始化分割线程
+  ├── initialize_camera_thread()        # 初始化相机线程
+  └── setup_connections()               # 连接信号和槽</code></pre>
+    </div>
+
+    <div id="code-video" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.3 video_thread.py — 视频采集线程</div>
+        <p><strong>大小</strong>：11 KB | <strong>作用</strong>：读取视频文件，输出帧图像</p>
+        <table>
+            <thead>
+                <tr><th>信号</th><th>类型</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>frame_ready</code></td><td>QPixmap</td><td>处理后的帧（用于显示）</td></tr>
+                <tr><td><code>new_frame</code></td><td>np.ndarray</td><td>原始 BGR 帧（用于检测）</td></tr>
+                <tr><td><code>fps_changed</code></td><td>float</td><td>视频 FPS</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="code-camera" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.4 camera_thread.py — 相机采集线程</div>
+        <p><strong>大小</strong>：8 KB | <strong>作用</strong>：通过 pypylon SDK 控制 Basler 工业相机</p>
+        <table>
+            <thead>
+                <tr><th>参数</th><th>值</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>触发模式</td><td>Off（连续采集）</td></tr>
+                <tr><td>帧率</td><td>30 FPS</td></tr>
+                <tr><td>像素格式</td><td>Mono8（灰度）</td></tr>
+                <tr><td>ROI</td><td>1600&times;1200</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="code-detection" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.5 detection_thread.py — 检测线程</div>
+        <p><strong>大小</strong>：42 KB | <strong>作用</strong>：YOLOv8 推理 + JPDAF 跟踪 + 精子注册表更新</p>
+        <h4>核心循环</h4>
+        <pre><code>对每一帧:
+  1. 预处理: BGR→RGB, 缩放到 640×640, 归一化, CHW 转换
+  2. TensorRT 推理: 拷贝到 GPU → 执行 → 拷贝回 CPU
+  3. 后处理: 转置, 置信度过滤, xywh→xyxy, 缩放回原尺寸, NMS
+  4. JPDAF 跟踪: predict() → correct() → get_active_tracks()
+  5. 注册表更新: 对每个活跃轨迹, 匹配最近的检测框, 更新运动学参数
+  6. 调度: select_for_segmentation(K=10) 选择 10 个精子供分割
+  7. 最优选择: get_best_sperm(frame_w, frame_h)
+  8. 数据库写入: 每 10 帧 flush_to_db()
+  9. 构造 DetectionResult, 发送给分割线程
+  10. 发送统计信号</code></pre>
+    </div>
+
+    <div id="code-segment" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.6 segment_thread.py — 分割线程</div>
+        <p><strong>大小</strong>：60 KB（项目中最大的文件） | <strong>作用</strong>：ADSCNet 分割 + 形态学测量 + 精子分级</p>
+        <h4>核心循环</h4>
+        <pre><code>对每个 DetectionResult:
+  1. 遍历 top_candidates（10 个候选精子）
+  2. 对每个候选:
+     a. 提取 64×64 ROI
+     b. 预处理: albumentations Resize+Normalize
+     c. TensorRT 推理
+     d. 后处理: sigmoid → 阈值 0.5 → 二值 mask
+     e. 计算头部形态学（椭圆拟合）
+     f. 计算颈部形态学（骨架化 + 距离变换）
+     g. 精子分级
+     h. 更新注册表
+  3. 查询最优精子: get_best_sperm()
+  4. 绘制可视化结果
+  5. 发送显示信号</code></pre>
+    </div>
+
+    <div id="code-tracker" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.7 jpdaf_tracker.py — JPDAF 跟踪器</div>
+        <p><strong>大小</strong>：24 KB（617 行） | <strong>作用</strong>：完整的 JPDAF 多目标跟踪算法</p>
+        <pre><code>JPDATrack (单个轨迹)
+  ├── 卡尔曼滤波器状态 (x, P, F, H, Q, R)
+  ├── 轨迹管理 (id, age, trajectory, consecutive_misses)
+  ├── 运动学计算 (vsl, alh, grade)
+  └── 方法: predict(), correct(), calculate_motion_parameters()
+
+JPDAFilter (多轨迹管理器)
+  ├── 轨迹列表 (self.tracks)
+  ├── 方法: predict(), correct(), validate_measurements()
+  ├── 聚类: cluster_measurements()
+  ├── 概率: calc_joint_prob()
+  └── 管理: delete_tracks(), init_unassociate_tracks()</code></pre>
+    </div>
+
+    <div id="code-registry" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.8 sperm_registry.py — 精子注册表</div>
+        <p><strong>大小</strong>：25 KB（566 行） | <strong>作用</strong>：管理所有精子的数据，实现综合评分、调度、最优选择</p>
+        <h4>SpermRecord 数据类</h4>
+        <p>33 个字段，涵盖身份、运动学、检测框、形态学、调度状态、EMA 平滑值、投票结果、连续评分。</p>
+        <h4>主要方法</h4>
+        <table>
+            <thead>
+                <tr><th>方法</th><th>调用者</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>update_kinematics()</code></td><td>DetectionThread</td><td>更新运动学参数（每帧）</td></tr>
+                <tr><td><code>update_morphology()</code></td><td>SegmentThread</td><td>更新形态学参数</td></tr>
+                <tr><td><code>select_for_segmentation()</code></td><td>DetectionThread</td><td>选择 K 个精子供分割</td></tr>
+                <tr><td><code>get_best_sperm()</code></td><td>两个线程</td><td>获取最优精子</td></tr>
+                <tr><td><code>flush_to_db()</code></td><td>DetectionThread</td><td>批量写入数据库</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="code-modules" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.9 modules.py — 神经网络基础模块</div>
+        <p><strong>大小</strong>：8 KB（193 行） | <strong>作用</strong>：各种卷积-BN-激活函数的组合模块</p>
+        <table>
+            <thead>
+                <tr><th>模块</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>ConvBNAct</code></td><td>标准卷积 + BN + 激活</td></tr>
+                <tr><td><code>DSConvBNAct</code></td><td>深度可分离卷积</td></tr>
+                <tr><td><code>DWConvBNAct</code></td><td>深度卷积</td></tr>
+                <tr><td><code>PWConvBNAct</code></td><td>逐点卷积 (1&times;1)</td></tr>
+                <tr><td><code>DeConvBNAct</code></td><td>转置卷积（上采样）</td></tr>
+                <tr><td><code>Activation</code></td><td>激活函数工厂（16 种）</td></tr>
+                <tr><td><code>PyramidPoolingModule</code></td><td>金字塔池化模块</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="code-zoo" class="card">
+        <div class="card-title"><span class="icon">P</span> 18.10 model_zoo/ — 模型定义</div>
+        <div class="grid-2">
+            <div>
+                <h4>adscnet.py — ADSCNet</h4>
+                <table>
+                    <thead><tr><th>模块</th><th>说明</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ADSCModule</code></td><td>非对称深度可分离卷积 (3,1)+(1,3)</td></tr>
+                        <tr><td><code>DDCC</code></td><td>密集膨胀卷积上下文模块</td></tr>
+                        <tr><td><code>ADSCNet</code></td><td>完整编码器-解码器网络</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <h4>edanet.py — EDANet</h4>
+                <table>
+                    <thead><tr><th>模块</th><th>说明</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>EDAModule</code></td><td>高效密集非对称模块</td></tr>
+                        <tr><td><code>EDABlock</code></td><td>密集连接块</td></tr>
+                        <tr><td><code>EDANet</code></td><td>完整网络</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== Section 19: 使用指南 ==================== -->
+<section id="usage">
+    <h2>19. 使用指南</h2>
+
+    <h3>启动程序</h3>
+    <pre><code># 激活虚拟环境
+conda activate spermselectionv2
+
+# 运行程序
+python main.py</code></pre>
+
+    <h3>界面操作</h3>
+    <p>程序启动后自动进入"实时分析"标签页。</p>
+
+    <table>
+        <thead>
+            <tr><th>按钮</th><th>功能</th><th>使用场景</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>开始</strong></td><td>启动检测和分割流水线</td><td>开始分析视频</td></tr>
+            <tr><td><strong>停止</strong></td><td>暂停检测和分割</td><td>暂停分析</td></tr>
+            <tr><td><strong>录制</strong></td><td>切换轨迹可视化显示</td><td>需要查看精子轨迹时</td></tr>
+            <tr><td><strong>清除</strong></td><td>切换视频/相机模式</td><td>切换输入源</td></tr>
+        </tbody>
+    </table>
+
+    <h3>操作流程</h3>
+    <div class="flow-diagram">
+        <div class="flow-box">
+            <span class="flow-step" style="background:#6b7280;">1. 启动程序</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">2. 点击"开始"</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step" style="background:#16a34a;">3. 观察绿框（最优精子）</span>
+        </div>
+        <div class="flow-box">
+            <span class="flow-step">4. 点击"录制"查看轨迹</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">5. 双击全屏</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step" style="background:#dc2626;">6. ESC 退出全屏</span>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== Section 20: 常见问题 ==================== -->
+<section id="faq">
+    <h2>20. 常见问题与排查</h2>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 程序启动时报 "加载UI界面失败"</div>
+        <p><strong>原因</strong>：找不到 <code>interfacedesign.ui</code> 文件</p>
+        <p><strong>解决</strong>：确保在项目根目录运行 <code>python main.py</code></p>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> TensorRT 引擎加载失败</div>
+        <p><strong>原因</strong>：TensorRT 版本不匹配或 CUDA 版本不对</p>
+        <p><strong>解决</strong>：</p>
+        <ol>
+            <li>检查 CUDA 版本：<code>nvcc --version</code></li>
+            <li>检查 TensorRT 版本：<code>python -c "import tensorrt; print(tensorrt.__version__)"</code></li>
+            <li>如果版本不匹配，需要重新转换模型：<code>python yolov8_onnx2engine.py</code></li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 视频播放但没有检测结果</div>
+        <p><strong>原因</strong>：没有点击"开始"按钮</p>
+        <p><strong>解决</strong>：点击"开始"按钮启动检测流水线</p>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 检测到精子但没有绿色框</div>
+        <p><strong>原因</strong>：候选池中没有满足条件的精子（需要至少 10 次形态学测量）</p>
+        <p><strong>解决</strong>：等待足够多的测量，或检查视频质量</p>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="icon">?</span> 程序运行很慢</div>
+        <p><strong>可能原因</strong>：</p>
+        <ul>
+            <li>GPU 显存不足 &rarr; 减少 max_detections</li>
+            <li>CPU 瓶颈 &rarr; 检查是否有其他程序占用 CPU</li>
+            <li>视频分辨率太高 &rarr; 使用较低分辨率的视频</li>
+        </ul>
+    </div>
+</section>
+
+<!-- ==================== Section 21: 常量速查 ==================== -->
+<section id="constants">
+    <h2>21. 关键常量速查表</h2>
+    <table>
+        <thead>
+            <tr><th>常量</th><th>值</th><th>文件</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr><td><code>EMA_ALPHA</code></td><td>0.15</td><td>sperm_registry.py</td><td>EMA 平滑系数</td></tr>
+            <tr><td><code>GRADE_VOTE_WINDOW</code></td><td>20</td><td>sperm_registry.py</td><td>等级投票窗口</td></tr>
+            <tr><td><code>GRADE_VOTE_THRESHOLD</code></td><td>0.6</td><td>sperm_registry.py</td><td>投票采纳阈值</td></tr>
+            <tr><td><code>BEST_HOLD_FRAMES</code></td><td>30</td><td>sperm_registry.py</td><td>滞后切换帧数</td></tr>
+            <tr><td><code>BEST_SWITCH_MARGIN</code></td><td>0.05</td><td>sperm_registry.py</td><td>切换分数差距</td></tr>
+            <tr><td><code>CONFIDENCE_THRESHOLD</code></td><td>10</td><td>sperm_registry.py</td><td>候选池进入阈值</td></tr>
+            <tr><td><code>K_PER_FRAME</code></td><td>10</td><td>sperm_registry.py</td><td>每帧分割数</td></tr>
+            <tr><td><code>COMPOSITE_ALPHA</code></td><td>0.5</td><td>sperm_registry.py</td><td>运动学/形态学权重</td></tr>
+            <tr><td><code>conf_threshold</code></td><td>0.25</td><td>detection_thread.py</td><td>检测置信度阈值</td></tr>
+            <tr><td><code>iou_threshold</code></td><td>0.45</td><td>detection_thread.py</td><td>NMS IoU 阈值</td></tr>
+            <tr><td><code>max_detections</code></td><td>150</td><td>detection_thread.py</td><td>最大检测数</td></tr>
+            <tr><td><code>pixel_to_micron</code></td><td>0.7</td><td>多文件</td><td>像素到微米转换</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- ==================== Section 22: 术语表 ==================== -->
+<section id="glossary">
+    <h2>22. 术语表</h2>
+    <table>
+        <thead>
+            <tr><th>术语</th><th>英文</th><th>含义</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>VSL</td><td>Velocity of Straight Line</td><td>直线运动速度</td></tr>
+            <tr><td>ALH</td><td>Amplitude of Lateral Head displacement</td><td>头部侧向振幅</td></tr>
+            <tr><td>JPDAF</td><td>Joint Probabilistic Data Association Filter</td><td>联合概率数据关联滤波器</td></tr>
+            <tr><td>EMA</td><td>Exponential Moving Average</td><td>指数移动平均</td></tr>
+            <tr><td>NMS</td><td>Non-Maximum Suppression</td><td>非极大值抑制</td></tr>
+            <tr><td>IoU</td><td>Intersection over Union</td><td>交并比</td></tr>
+            <tr><td>ROI</td><td>Region of Interest</td><td>感兴趣区域</td></tr>
+            <tr><td>TensorRT</td><td>-</td><td>NVIDIA 推理优化引擎</td></tr>
+            <tr><td>CUDA</td><td>Compute Unified Device Architecture</td><td>NVIDIA GPU 计算架构</td></tr>
+            <tr><td>FP16/FP32</td><td>Float16/Float32</td><td>半精度/单精度浮点数</td></tr>
+            <tr><td>BGR</td><td>Blue-Green-Red</td><td>OpenCV 默认颜色格式</td></tr>
+            <tr><td>CHW</td><td>Channel-Height-Width</td><td>PyTorch 张量格式</td></tr>
+            <tr><td>WAL</td><td>Write-Ahead Logging</td><td>SQLite 日志模式</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- Footer -->
+<footer style="text-align:center;padding:40px 0;color:var(--gray-500);font-size:13px;border-top:1px solid var(--gray-200);margin-top:60px;">
+    <p>文档版本 2.0 — 2026-05-23</p>
+    <p>实时单精子优选分级系统 &copy; Simon</p>
+</footer>
+
+</main>
+
+<!-- Back to top button -->
+<button onclick="window.scrollTo({top:0,behavior:'smooth'})" style="position:fixed;bottom:30px;right:30px;width:45px;height:45px;border-radius:50%;background:var(--primary);color:white;border:none;cursor:pointer;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:999;" title="回到顶部">&uarr;</button>
+
+<script>
+// Highlight current section in sidebar
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.sidebar nav a[href^="#"]');
+
+window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (window.scrollY >= sectionTop - 100) {
+            current = section.getAttribute('id');
+        }
+    });
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+            link.classList.add('active');
+        }
+    });
+});
+</script>
+
+</body>
+</html>
