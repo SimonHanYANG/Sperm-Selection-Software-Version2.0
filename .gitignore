@@ -8,3 +8,4 @@ weights_videos.zip
 SpermDatabase/
 TensorRt-10.9.0.34/
 .vscode/
+__pycache__/
