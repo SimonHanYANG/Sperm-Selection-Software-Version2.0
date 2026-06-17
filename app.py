@@ -307,6 +307,11 @@ class MainWindow(QMainWindow):
                 self.video_thread.new_frame.connect(self.detection_thread.add_frame)
                 self.video_thread.fps_changed.connect(self.detection_thread.update_fps)
                 print("已连接视频到检测线程")
+
+        # 连接视频线程和分割线程
+        if self.video_thread and self.segment_thread:
+            self.video_thread.set_segment_thread(self.segment_thread)
+            print("已连接视频线程到分割线程")
         
         # 如果切换前正在运行，则自动恢复
         if self.was_detecting or self.was_segmenting:
@@ -394,6 +399,10 @@ class MainWindow(QMainWindow):
                     self.segment_thread.set_detection_thread(self.detection_thread)
                     if hasattr(self.detection_thread, 'tracker') and self.detection_thread.tracker:
                         self.segment_thread.set_tracker(self.detection_thread.tracker)
+
+                # 连接视频线程和分割线程（视频线程负责显示绿框和 overlay）
+                if self.video_thread and self.video_thread.isRunning():
+                    self.video_thread.set_segment_thread(self.segment_thread)
                 
             else:
                 print("分割线程初始化失败")

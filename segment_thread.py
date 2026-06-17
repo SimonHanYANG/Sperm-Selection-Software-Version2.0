@@ -59,8 +59,12 @@ class SegmentThread(QThread):
         self._pipeline_signaled = False  # 管线就绪信号是否已发送
         
         # 检测结果缓冲区
-        self.detection_buffer = deque(maxlen=50)
+        self.detection_buffer = deque(maxlen=3)
         self.buffer_lock = threading.Lock()
+
+        # 分割 overlay 数据（供 VideoThread 读取）
+        self._overlay_lock = threading.Lock()
+        self._latest_overlay = None  # (masks, roi_box, seg_colors, alpha)
         
         # TensorRT引擎
         self.engine = None
@@ -162,6 +166,13 @@ class SegmentThread(QThread):
     def set_pixel_to_micron(self, value):
         """设置像素到微米的转换系数"""
         self.pixel_to_micron = value
+
+    def get_latest_overlay(self):
+        """获取最新的分割 overlay 数据（线程安全，取后即清）"""
+        with self._overlay_lock:
+            result = self._latest_overlay
+            self._latest_overlay = None
+        return result
     
     def _get_segmentation_colors(self, num_classes):
         """生成分割颜色"""
@@ -853,9 +864,11 @@ class SegmentThread(QThread):
                     self.msleep(50)
                     continue
                 
-                # 从缓冲区获取检测结果
+                # 从缓冲区获取检测结果（跳帧：丢弃旧结果只保留最新）
                 detection_result = None
                 with self.buffer_lock:
+                    while len(self.detection_buffer) > 1:
+                        self.detection_buffer.popleft()
                     if self.detection_buffer:
                         detection_result = self.detection_buffer.popleft()
                     buffer_size = len(self.detection_buffer)
@@ -884,15 +897,11 @@ class SegmentThread(QThread):
                         avg_time = np.mean(self.segment_times)
                         self.segment_fps = 1000.0 / avg_time if avg_time > 0 else 0.0
                     
-                    # 发送结果帧
-                    self.segmented_frame.emit(result_frame)
-                    self._send_frame(result_frame)
-
                     # 首帧产出后通知管线就绪
                     if not self._pipeline_signaled:
                         self._pipeline_signaled = True
                         self.pipeline_ready.emit()
-                    
+
                     # 更新统计
                     self.total_segmentations += 1
                     
@@ -914,9 +923,6 @@ class SegmentThread(QThread):
                     print(f"分割处理出错: {e}")
                     import traceback
                     traceback.print_exc()
-                    # 发送原始帧
-                    if detection_result:
-                        self._send_frame(detection_result.frame)
         
         finally:
             if self.cuda_context:
@@ -926,7 +932,7 @@ class SegmentThread(QThread):
         """正常模式：对调度的 K 个精子进行分割，从候选池选最优精子显示"""
         frame = detection_result.frame
         tracks = detection_result.tracks
-        scheduled_ids = detection_result.top_candidates  # K=10 from scheduler
+        scheduled_ids = detection_result.top_candidates  # K from scheduler
 
         result_frame = frame.copy()
         self.current_frame_number += 1
@@ -937,6 +943,9 @@ class SegmentThread(QThread):
 
         # 构建 track 查找表
         track_map = {t.id: t for t in tracks}
+
+        # 缓存每个精子的分割结果（用于复用最优精子的 masks）
+        seg_cache = {}  # {tid: (masks, roi_box)}
 
         # 对所有被调度的精子进行分割和形态学分析
         for tid in scheduled_ids:
@@ -962,6 +971,9 @@ class SegmentThread(QThread):
             try:
                 seg_output = self._infer(roi_tensor)
                 masks, probs = self._postprocess(seg_output, roi_size=(self.roi_size, self.roi_size))
+
+                # 缓存分割结果
+                seg_cache[tid] = (masks, roi_box)
 
                 # 计算形态学参数
                 head_length, head_width, head_ratio, head_area = self._calculate_head_morphology(masks)
@@ -1025,44 +1037,29 @@ class SegmentThread(QThread):
             if rec:
                 self.best_sperm_updated.emit(best_id, rec.morphology_grade)
 
-        # 如果候选池为空，不绘制
+        # 如果候选池为空，直接返回
         if not best_track or len(best_track.trajectory) == 0:
             return result_frame
 
         center_x, center_y = best_track.trajectory[-1]
 
-        # Grade 1的颜色（绿色）
-        grade1_color = self.grade_colors[1]
-
-        # 绘制64x64检测框
-        box_size = 64
-        half_size = box_size // 2
-        x1 = int(center_x - half_size)
-        y1 = int(center_y - half_size)
-        x2 = int(center_x + half_size)
-        y2 = int(center_y + half_size)
-
-        # 确保框在图像范围内
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(result_frame.shape[1], x2)
-        y2 = min(result_frame.shape[0], y2)
-
-        # 绘制检测框
-        cv2.rectangle(result_frame, (x1, y1), (x2, y2), grade1_color, 2)
-
-        # 提取ROI进行分割可视化
-        roi, roi_box = self._extract_roi(frame, center_x, center_y)
-        if roi.shape[0] > 0 and roi.shape[1] > 0:
-            roi_tensor = self._preprocess(roi)
-            try:
-                seg_output = self._infer(roi_tensor)
-                masks, probs = self._postprocess(seg_output, roi_size=(self.roi_size, self.roi_size))
-                # 应用分割叠加
-                result_frame = self._overlay_segmentation(result_frame, masks, roi_box,
-                                                        self.seg_colors, self.overlay_alpha)
-            except Exception as e:
-                print(f"可视化分割失败: {e}")
+        # 优先复用 K 循环中已有的分割结果，避免重复推理
+        if best_id in seg_cache:
+            masks, roi_box = seg_cache[best_id]
+            with self._overlay_lock:
+                self._latest_overlay = (masks, roi_box, self.seg_colors, self.overlay_alpha, time.time())
+        else:
+            # 最优精子不在 K 循环中（如边缘跳过），单独推理
+            roi, roi_box = self._extract_roi(frame, center_x, center_y)
+            if roi.shape[0] > 0 and roi.shape[1] > 0:
+                roi_tensor = self._preprocess(roi)
+                try:
+                    seg_output = self._infer(roi_tensor)
+                    masks, probs = self._postprocess(seg_output, roi_size=(self.roi_size, self.roi_size))
+                    with self._overlay_lock:
+                        self._latest_overlay = (masks, roi_box, self.seg_colors, self.overlay_alpha, time.time())
+                except Exception as e:
+                    print(f"可视化分割失败: {e}")
 
         return result_frame
     

@@ -389,6 +389,23 @@ class DetectionThread(QThread):
         self.mutex.lock()
         self.fullscreen_label = label
         self.mutex.unlock()
+
+    def get_best_sperm_position(self):
+        """获取最优精子的当前位置（线程安全，边缘时返回 None）"""
+        self.mutex.lock()
+        best_id = self.best_track_id
+        self.mutex.unlock()
+
+        if best_id is None or self.tracker is None:
+            return None
+
+        for track in self.tracker.get_active_tracks():
+            if track.id == best_id and len(track.trajectory) > 0:
+                x, y = track.trajectory[-1]
+                if self._is_near_edge(x, y):
+                    return None
+                return (x, y)
+        return None
     
     def start_detection(self):
         """开始检测"""
@@ -634,15 +651,14 @@ class DetectionThread(QThread):
                     if inactive_ids:
                         self.registry.mark_inactive(inactive_ids)
 
-                    # 使用注册表调度选择 K=10 个精子
+                    # 使用注册表调度选择 K=8 个精子
                     frame_shape = (self.frame_height, self.frame_width)
                     self.top_candidates = self.registry.select_for_segmentation(
-                        K=10, frame_shape=frame_shape, current_frame=self.frame_count
+                        K=8, frame_shape=frame_shape, current_frame=self.frame_count
                     )
 
-                    # 最优精子从候选池获取 (带滞后 + 检测框边缘即时切换)
-                    best = self.registry.get_best_sperm(self.frame_width, self.frame_height)
-                    self.best_track_id = best.track_id if best else None
+                    # 最优精子由 SegmentThread 在分割后设置（避免双线程调用 get_best_sperm 导致 hold_count 加速）
+                    # self.best_track_id 由 SegmentThread.update → detection_thread.best_track_id
 
                     # 定期刷写数据库
                     if self.frame_count % 10 == 0:

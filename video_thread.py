@@ -1,6 +1,8 @@
 import os
+import time
 import cv2
 import numpy as np
+from collections import deque
 from PyQt6.QtCore import QThread, pyqtSignal, QMutex, QSize, Qt, QCoreApplication
 from PyQt6.QtGui import QImage, QPixmap, QGuiApplication
 from PyQt6.QtWidgets import QLabel
@@ -46,6 +48,14 @@ class VideoTestThread(QThread):
         self.detection_thread = None
         self.detection_enabled = False  # 标记检测是否启用
         self._pipeline_active = False  # 管线是否已就绪（首帧产出后为True）
+
+        # 添加分割线程引用（用于获取 overlay 数据）
+        self.segment_thread = None
+        self._current_overlay = None  # 缓存最新 overlay（持续显示直到新 overlay 到达）
+
+        # 实际显示帧率测量
+        self._display_frame_times = deque(maxlen=60)
+        self._last_fps_emit_time = 0.0
         
         # 连接信号
         self.frame_ready.connect(self.update_frame)
@@ -72,6 +82,10 @@ class VideoTestThread(QThread):
     def set_detection_thread(self, detection_thread):
         """设置检测线程"""
         self.detection_thread = detection_thread
+
+    def set_segment_thread(self, segment_thread):
+        """设置分割线程"""
+        self.segment_thread = segment_thread
     
     def enable_detection(self, enabled, pipeline_active=False):
         """启用或禁用检测"""
@@ -130,16 +144,17 @@ class VideoTestThread(QThread):
             # 获取视频属性
             fps = self.cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            delay = int(1000 / fps) if fps > 0 else 33  # 默认30fps
+            frame_interval = 1.0 / fps if fps > 0 else 1.0 / 30  # 每帧间隔（秒）
             
             print(f"视频信息: FPS={fps}, 总帧数={total_frames}")
-            
-            # 发送FPS信息
-            self.fps_changed.emit(fps)
-            
+
+            # 实际显示帧率由 send_frame() 中测量并每 0.5s 发射一次
+
             # 帧计数器
             frame_count = 0
-            
+            # 帧率控制：用 perf_counter 精确按视频原始帧率播放
+            next_frame_time = time.perf_counter()
+
             while self.running:
                 # 检查是否暂停
                 self.mutex.lock()
@@ -172,20 +187,50 @@ class VideoTestThread(QThread):
                 self.current_frame = frame.copy()
                 self.mutex.unlock()
                 
-                # 每一帧都发送，不跳帧
-                # 根据检测状态决定如何处理帧
+                # 发送到检测线程（如果启用）
                 if self.detection_thread and detection_enabled:
-                    # 发送到检测线程
                     self.new_frame.emit(frame)
-                    # 管线未就绪时，同时显示原始帧（防止画面空白闪烁）
-                    if not pipeline_active:
-                        self.send_frame(frame)
+
+                    # 绘制绿色最优精子框（每帧都画，实时跟随）
+                    best_pos = self.detection_thread.get_best_sperm_position()
+                    if best_pos is not None:
+                        frame = self._draw_green_box(frame.copy(), best_pos[0], best_pos[1])
+
+                    # 绘制分割 overlay（有新结果时更新，否则保持上次的）
+                    if self.segment_thread:
+                        overlay = self.segment_thread.get_latest_overlay()
+                        if overlay is not None:
+                            self._current_overlay = overlay
+                        if self._current_overlay is not None:
+                            _masks, _roi_box, _colors, _alpha, _ts = self._current_overlay
+                            # 过期检查：超过 500ms 不显示
+                            if time.time() - _ts > 0.5:
+                                self._current_overlay = None
+                            elif best_pos is not None:
+                                # 用当前精子位置重新定位 overlay，消除滞后
+                                _h = _roi_box[3] - _roi_box[1]
+                                _w = _roi_box[2] - _roi_box[0]
+                                cx, cy = best_pos
+                                new_roi_box = (
+                                    max(0, int(cx - _w / 2)),
+                                    max(0, int(cy - _h / 2)),
+                                    min(frame.shape[1], int(cx + _w / 2)),
+                                    min(frame.shape[0], int(cy + _h / 2)),
+                                )
+                                frame = self._draw_seg_overlay(frame, (_masks, new_roi_box, _colors, _alpha))
+
+                # 始终显示
+                self.send_frame(frame)
+
+                # 按视频原始帧率等待到下一帧时间点
+                next_frame_time += frame_interval
+                now = time.perf_counter()
+                sleep_sec = next_frame_time - now
+                if sleep_sec > 0:
+                    time.sleep(sleep_sec)
                 else:
-                    # 没有启用检测，直接显示原始帧
-                    self.send_frame(frame)
-                
-                # 控制帧率
-                self.msleep(delay)
+                    # 处理耗时已超过帧间隔，跳过等待并重置时间基准
+                    next_frame_time = now
             
             # 释放资源
             if self.cap is not None:
@@ -196,15 +241,60 @@ class VideoTestThread(QThread):
             self.error_occurred.emit(f"视频处理出错: {str(e)}")
     
     def send_frame(self, frame):
-        """将OpenCV帧转换为QPixmap并发送信号"""
+        """将OpenCV帧转换为QPixmap并发送信号，并测量实际显示帧率"""
         try:
             height, width, channel = frame.shape
             bytes_per_line = 3 * width
             q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
             pixmap = QPixmap.fromImage(q_img)
             self.frame_ready.emit(pixmap)
+
+            # 测量实际显示帧率
+            now = time.perf_counter()
+            self._display_frame_times.append(now)
+            # 每 0.5 秒发射一次实际 FPS
+            if now - self._last_fps_emit_time >= 0.5:
+                self._last_fps_emit_time = now
+                if len(self._display_frame_times) >= 2:
+                    dt = self._display_frame_times[-1] - self._display_frame_times[0]
+                    if dt > 0:
+                        real_fps = (len(self._display_frame_times) - 1) / dt
+                        self.fps_changed.emit(real_fps)
         except Exception as e:
             print(f"发送帧时出错: {e}")
+
+    def _draw_green_box(self, frame, center_x, center_y):
+        """在最优精子位置绘制绿色检测框（每帧调用，实时跟随）"""
+        box_size = 64
+        half_size = box_size // 2
+        x1 = max(0, int(center_x - half_size))
+        y1 = max(0, int(center_y - half_size))
+        x2 = min(frame.shape[1], int(center_x + half_size))
+        y2 = min(frame.shape[0], int(center_y + half_size))
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        return frame
+
+    def _draw_seg_overlay(self, frame, overlay_data):
+        """在帧上绘制分割 overlay"""
+        masks, roi_box, seg_colors, alpha = overlay_data
+        x1, y1, x2, y2 = roi_box
+        roi_h, roi_w = y2 - y1, x2 - x1
+        if roi_h <= 0 or roi_w <= 0:
+            return frame
+        roi = frame[y1:y2, x1:x2]
+        for i, mask in enumerate(masks):
+            if mask.shape[0] != roi_h or mask.shape[1] != roi_w:
+                mask = cv2.resize(mask, (roi_w, roi_h))
+            binary_mask = mask > 0.5
+            if np.any(binary_mask):
+                color = np.array(seg_colors[i], dtype=np.uint8)
+                for c in range(3):
+                    roi[:, :, c] = np.where(
+                        binary_mask,
+                        roi[:, :, c] * (1 - alpha) + color[c] * alpha,
+                        roi[:, :, c]
+                    )
+        return frame
     
     def stop(self):
         """停止线程"""

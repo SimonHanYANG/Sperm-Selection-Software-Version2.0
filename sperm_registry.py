@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 # 常量配置
 # ============================================================
 CONFIDENCE_THRESHOLD = 10      # 形态学测量次数阈值，达到后进入候选池
-K_PER_FRAME = 10               # 每帧分割的精子数
+K_PER_FRAME = 8                # 每帧分割的精子数
 FRESHNESS_INTERVAL = 30        # 候选池精子重新测量间隔(帧)
 W_MORPH_COUNT = 0.4            # 调度权重：测量需求
 W_VSL = 0.3                    # 调度权重：VSL
@@ -23,7 +23,7 @@ DB_FLUSH_INTERVAL = 10         # 每 N 帧批量写入 sperm_records
 EMA_ALPHA = 0.15               # 指数移动平均系数 (越小越平滑)
 GRADE_VOTE_WINDOW = 20         # 等级投票窗口大小
 GRADE_VOTE_THRESHOLD = 0.6     # 投票阈值 (60% 以上一致才采纳)
-BEST_HOLD_FRAMES = 30          # 最佳精子最小保持帧数
+BEST_HOLD_FRAMES = 8           # 最佳精子最小保持帧数（~0.8秒 @10fps，原30帧/40fps≈0.75秒）
 BEST_SWITCH_MARGIN = 0.05      # 切换所需超越幅度
 
 
